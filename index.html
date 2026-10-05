@@ -82,7 +82,7 @@ h1 small { display: block; font-size: 13px; font-weight: 400; color: var(--muted
 }
 .toast {
   position: absolute; left: 50%; top: 40%; transform: translate(-50%, -50%) scale(.9);
-  font-size: 44px; font-weight: 800; color: #fff; background: var(--pink); padding: 6px 28px;
+  font-size: 18px; font-weight: 800; color: #fff; background: var(--pink); padding: 5px 16px;
   border-radius: 999px; opacity: 0; pointer-events: none; transition: opacity .25s, transform .25s;
   box-shadow: 0 6px 0 var(--pink-deep);
 }
@@ -926,7 +926,7 @@ const DEFAULTS = {
   ringType: 'D', ringWidth: 0.05, ringHeight: 0.055, ringPipe: 0.008, qGap: 30, ringCount: 2, ringAngle: 0, ringAngleMode: 'fixed',
   boardWidth: 0.26, boardDepth: 0.16, boardMass: 0.25, boardFriction: 0.5, boardX: 0.05, boardZ: -0.05, winLift: 0.04,
   gravity: 9.81, iterations: 40, dt: 1 / 240, timeScale: 1,
-  guide: false, lastMark: true, inset: true,
+  guide: false, lastMark: true, inset: true, debugHud: false,
 };
 
 const SPEC = [
@@ -1007,6 +1007,7 @@ const SPEC = [
     { k: 'guide', label: 'チェーンの真下にガイド線を表示', type: 'check', t: 'live' },
     { k: 'lastMark', label: '前回フックが下りた位置を表示', type: 'check', t: 'live' },
     { k: 'inset', label: '横からの小窓を表示', type: 'check', t: 'live' },
+    { k: 'debugHud', label: '位置・状態などの情報を表示', type: 'check', t: 'live' },
   ]},
 ];
 
@@ -1045,7 +1046,7 @@ renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.outputEncoding = THREE.sRGBEncoding;
 stage.prepend(renderer.domElement);
 $('loading').remove();
-$('hud').hidden = false;
+$('hud').hidden = !P.debugHud;
 
 const scene = new THREE.Scene();
 const cam = new THREE.PerspectiveCamera(42, 1, 0.01, 20);
@@ -1379,7 +1380,7 @@ function buildPanel() {
   PRESETS.forEach(p => {
     const b = document.createElement('button'); b.className = 'chip'; b.textContent = p.name;
     b.addEventListener('click', () => {
-      const keepView = { guide: P.guide, inset: P.inset, lastMark: P.lastMark, mode: P.mode, timeScale: P.timeScale };
+      const keepView = { guide: P.guide, inset: P.inset, lastMark: P.lastMark, debugHud: P.debugHud, mode: P.mode, timeScale: P.timeScale };
       P = Object.assign({}, DEFAULTS, p.v, keepView); Object.assign(sim.P, P);
       save(); syncInputs(); pendingCrane = true; pendingBoard = true; applyLiveAll(); applyPending();
     });
@@ -1398,6 +1399,7 @@ function syncInputs() { Object.keys(inputs).forEach(showVal); }
 function applyLiveAll() { Object.assign(sim.P, P); sim.applyLive(); refreshMode(); }
 function onChange(it) {
   Object.assign(sim.P, P);
+  if (it.k === 'debugHud') $('hud').hidden = !P.debugHud;
   if (it.t === 'crane') pendingCrane = true;
   if (it.t === 'board') pendingBoard = true;
   applyLiveAll();
@@ -1421,6 +1423,7 @@ $('respawn').addEventListener('click', () => { pendingBoard = true; applyPending
 $('resetStats').addEventListener('click', () => { stats = { tries: 0, wins: 0 }; saveStats(); updateScore(); });
 $('resetAll').addEventListener('click', () => {
   P = Object.assign({}, DEFAULTS); Object.assign(sim.P, P); save(); syncInputs();
+  $('hud').hidden = !P.debugHud;
   pendingCrane = pendingBoard = true; applyLiveAll(); applyPending();
 });
 
@@ -1516,7 +1519,7 @@ function frame(now) {
 requestAnimationFrame(frame);
 
 // ---------- share settings via URL / code ----------
-const SHARE_EXCLUDE = new Set(['guide', 'lastMark', 'inset', 'timeScale']);
+const SHARE_EXCLUDE = new Set(['guide', 'lastMark', 'inset', 'debugHud', 'timeScale']);
 const SPEC_BY_KEY = {};
 SPEC.forEach(sec => sec.items.forEach(it => { SPEC_BY_KEY[it.k] = it; }));
 function b64urlFromBytes(bytes) {
@@ -1570,7 +1573,7 @@ async function decodeSettings(code) {
   return clean;
 }
 function applyShared(clean) {
-  const keepView = { guide: P.guide, inset: P.inset, lastMark: P.lastMark, timeScale: P.timeScale };
+  const keepView = { guide: P.guide, inset: P.inset, lastMark: P.lastMark, debugHud: P.debugHud, timeScale: P.timeScale };
   P = Object.assign({}, DEFAULTS, clean, keepView); Object.assign(sim.P, P);
   save(); syncInputs(); pendingCrane = true; pendingBoard = true; applyLiveAll(); applyPending();
 }
