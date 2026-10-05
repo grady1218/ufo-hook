@@ -1,0 +1,1622 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>UFOキャッチャー フック設定 練習シミュレーター</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@400;700;800&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #f3eef8; --panel: #ffffff; --ink: #2a2140; --muted: #756b8c; --line: #e2d9ef;
+  --pink: #ff4f8b; --pink-deep: #d92e6c; --amber: #ffb020; --amber-deep: #d98a00;
+  --cyan: #22b8cf; --cyan-deep: #138a9c; --track: #e9e2f3; --stage: #dfe9f2;
+  --font: "M PLUS Rounded 1c", "Hiragino Maru Gothic ProN", "Hiragino Sans", "Yu Gothic", "Meiryo", system-ui, sans-serif;
+  box-sizing: border-box;
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #1b1726; --panel: #262035; --ink: #f1ecfa; --muted: #a99fbf; --line: #3a3150;
+    --track: #3a3150; --stage: #202a36;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #1b1726; --panel: #262035; --ink: #f1ecfa; --muted: #a99fbf; --line: #3a3150;
+  --track: #3a3150; --stage: #202a36;
+}
+*, *::before, *::after { box-sizing: inherit; }
+[hidden] { display: none !important; }
+html { height: 100%; scroll-padding-top: env(safe-area-inset-top, 0px); }
+body {
+  margin: 0; min-height: 100%; background: var(--bg); color: var(--ink);
+  font-family: var(--font); font-size: 15px; line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+button, select, input { font-family: inherit; color: inherit; }
+:focus-visible { outline: 3px solid var(--cyan); outline-offset: 2px; }
+
+.app {
+  display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 16px;
+  max-width: 1480px; margin: 0 auto; padding: 16px;
+}
+.main { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+header.top { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+h1 { margin: 0; font-size: 22px; font-weight: 800; letter-spacing: 0.02em; }
+h1 small { display: block; font-size: 13px; font-weight: 400; color: var(--muted); letter-spacing: 0; }
+.score { display: flex; gap: 18px; font-variant-numeric: tabular-nums; }
+.score div { text-align: right; }
+.score b { display: block; font-size: 24px; font-weight: 800; line-height: 1.1; }
+.score span { font-size: 12px; color: var(--muted); }
+
+.cabinet {
+  position: relative; border-radius: 22px; padding: 10px;
+  background: var(--pink);
+  box-shadow: inset 0 -6px 0 var(--pink-deep);
+}
+.stage {
+  position: relative; border-radius: 14px; overflow: hidden; background: var(--stage);
+  height: min(62vh, 640px); min-height: 340px;
+}
+.stage canvas { display: block; width: 100%; height: 100%; touch-action: none; cursor: grab; }
+.stage canvas:active { cursor: grabbing; }
+.hud {
+  position: absolute; left: 12px; top: 12px; pointer-events: none;
+  background: color-mix(in srgb, var(--panel) 86%, transparent); border-radius: 12px;
+  padding: 8px 12px; font-size: 13px; line-height: 1.5; font-variant-numeric: tabular-nums;
+  min-width: 190px;
+}
+.hud .state { font-size: 16px; font-weight: 800; }
+.hud dl { margin: 4px 0 0; display: grid; grid-template-columns: auto auto; gap: 0 12px; }
+.hud dt { color: var(--muted); }
+.hud dd { margin: 0; text-align: right; }
+.inset {
+  position: absolute; pointer-events: none; border: 2px solid var(--panel); border-radius: 10px;
+  box-shadow: 0 0 0 1px var(--line);
+}
+.inset span {
+  position: absolute; left: 6px; top: 6px; font-size: 11px; font-weight: 700;
+  background: var(--panel); padding: 0 7px; border-radius: 6px;
+}
+.toast {
+  position: absolute; left: 50%; top: 40%; transform: translate(-50%, -50%) scale(.9);
+  font-size: 44px; font-weight: 800; color: #fff; background: var(--pink); padding: 6px 28px;
+  border-radius: 999px; opacity: 0; pointer-events: none; transition: opacity .25s, transform .25s;
+  box-shadow: 0 6px 0 var(--pink-deep);
+}
+.toast.show { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+@media (prefers-reduced-motion: reduce) { .toast { transition: none; } }
+
+.deck {
+  display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap;
+  background: var(--panel); border-radius: 18px; padding: 12px 16px; border: 1px solid var(--line);
+}
+.arcade { display: flex; gap: 18px; align-items: flex-end; }
+.abtn {
+  width: 92px; height: 92px; border-radius: 50%; border: none; cursor: pointer;
+  font-size: 30px; font-weight: 800; color: #fff; position: relative;
+  touch-action: none; user-select: none; -webkit-user-select: none;
+  transition: transform .05s, box-shadow .05s, filter .2s;
+}
+.abtn small { display: block; font-size: 12px; font-weight: 700; margin-top: -4px; }
+.abtn.b1 { background: var(--amber); box-shadow: 0 7px 0 var(--amber-deep); }
+.abtn.b2 { background: var(--cyan); box-shadow: 0 7px 0 var(--cyan-deep); }
+.abtn.pressed { transform: translateY(5px); box-shadow: 0 2px 0 var(--amber-deep); }
+.abtn.b2.pressed { box-shadow: 0 2px 0 var(--cyan-deep); }
+.abtn:disabled { filter: grayscale(.85) opacity(.5); cursor: not-allowed; }
+.abtn.ready::after {
+  content: ""; position: absolute; inset: -7px; border-radius: 50%; border: 3px solid currentColor;
+  color: var(--ink); opacity: .35; animation: pulse 1s infinite;
+}
+@keyframes pulse { 50% { opacity: .05; } }
+@media (prefers-reduced-motion: reduce) { .abtn.ready::after { animation: none; } }
+.dpad { display: grid; grid-template-columns: repeat(3, 56px); grid-template-rows: repeat(2, 48px); gap: 6px; }
+.dpad button {
+  border: none; border-radius: 12px; background: var(--track); font-size: 20px; font-weight: 800; cursor: pointer;
+  touch-action: none; user-select: none; -webkit-user-select: none;
+}
+.dpad button.pressed { background: var(--amber); color: #fff; }
+.dpad .drop { background: var(--pink); color: #fff; font-size: 14px; }
+.hint { font-size: 12px; color: var(--muted); margin: 0; max-width: 34ch; }
+.views { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+.chip {
+  border: 1px solid var(--line); background: transparent; border-radius: 999px; padding: 6px 14px;
+  font-size: 13px; font-weight: 700; cursor: pointer;
+}
+.chip[aria-pressed="true"] { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+.chip.warn { color: var(--pink-deep); }
+:root[data-theme="dark"] .chip.warn { color: var(--pink); }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .chip.warn { color: var(--pink); } }
+
+aside.panel {
+  background: var(--panel); border-radius: 18px; border: 1px solid var(--line);
+  padding: 6px 16px 16px; align-self: start; position: sticky; top: calc(16px + env(safe-area-inset-top, 0px));
+  max-height: calc(100vh - 32px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px)); overflow: auto;
+}
+.panel h2 { font-size: 17px; margin: 10px 0 2px; font-weight: 800; }
+.panel .sub { font-size: 12px; color: var(--muted); margin: 0 0 8px; }
+.presets { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0 4px; }
+details { border-top: 1px solid var(--line); padding: 4px 0; }
+summary { cursor: pointer; font-weight: 800; padding: 8px 0; list-style: none; display: flex; justify-content: space-between; }
+summary::-webkit-details-marker { display: none; }
+summary::after { content: "＋"; color: var(--muted); font-weight: 400; }
+details[open] summary::after { content: "－"; }
+.row { padding: 6px 0 8px; }
+.row label { display: flex; justify-content: space-between; gap: 8px; font-size: 13px; }
+.row label output { font-variant-numeric: tabular-nums; font-weight: 700; white-space: nowrap; }
+.row .note { font-size: 11.5px; color: var(--muted); margin: 1px 0 0; line-height: 1.45; }
+input[type=range] { width: 100%; accent-color: var(--pink); margin: 4px 0 0; }
+select { width: 100%; margin-top: 4px; padding: 6px 8px; border-radius: 10px; border: 1px solid var(--line); background: var(--bg); }
+.check { display: flex; align-items: center; gap: 8px; font-size: 13px; padding: 6px 0; cursor: pointer; }
+.check input { accent-color: var(--pink); width: 18px; height: 18px; }
+.sharebox { width: 100%; margin-top: 8px; padding: 8px; border-radius: 10px; border: 1px solid var(--line); background: var(--bg); font-size: 12px; word-break: break-all; resize: vertical; font-family: inherit; }
+details.share { margin-top: 14px; }
+details.share .note { font-size: 12px; color: var(--muted); margin: 4px 0; display: block; }
+.pending { font-size: 12px; color: var(--pink-deep); margin: 4px 0 0; min-height: 1em; }
+.actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+.btn {
+  border: none; border-radius: 12px; padding: 9px 14px; font-weight: 800; font-size: 13px; cursor: pointer;
+  background: var(--track);
+}
+.btn.primary { background: var(--pink); color: #fff; }
+.loading {
+  position: absolute; inset: 0; display: grid; place-items: center; font-weight: 700; color: var(--muted);
+}
+.err { padding: 16px; color: var(--pink-deep); }
+
+@media (max-width: 980px) {
+  .app { grid-template-columns: 1fr; padding: 10px; }
+  aside.panel { position: static; max-height: none; }
+  .stage { height: 56vh; }
+}
+@media (max-width: 520px) {
+  .abtn { width: 78px; height: 78px; font-size: 26px; }
+  .score b { font-size: 20px; }
+  h1 { font-size: 19px; }
+  .hud { font-size: 12px; min-width: 0; padding: 6px 10px; }
+  .hud .state { font-size: 14px; }
+  .hud .opt { display: none; }
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="main">
+    <header class="top">
+      <h1>フック設定 練習機<small>クレーンのS字フックやOリングを板側のフックに引っ掛けて、板を釣り上げる練習用の物理シミュレーション</small></h1>
+      <div class="score" aria-live="polite">
+        <div><b id="sTries">0</b><span>プレイ</span></div>
+        <div><b id="sWins">0</b><span>獲得</span></div>
+        <div><b id="sRate">–</b><span>獲得率</span></div>
+      </div>
+    </header>
+    <div class="cabinet">
+      <div class="stage" id="stage">
+        <div class="loading" id="loading">物理エンジンを読み込み中…</div>
+        <div class="hud" id="hud" hidden>
+          <div class="state" id="hState">待機中</div>
+          <dl>
+            <dt>クレーン位置</dt><dd id="hPos">–</dd>
+            <dt>ヘッドの下降量</dt><dd id="hRope">–</dd>
+            <dt>吊り糸の揺れ</dt><dd id="hSwing">–</dd>
+            <dt>フックの向き</dt><dd id="hYaw">–</dd>
+            <dt class="opt" id="hGapL">フックのすき間</dt><dd class="opt" id="hGap">–</dd>
+            <dt>板の浮き</dt><dd id="hLift">–</dd>
+            <dt class="opt">計算</dt><dd class="opt" id="hPerf">–</dd>
+          </dl>
+        </div>
+        <div class="inset" id="insetFrame" hidden><span>横から見た様子</span></div>
+        <div class="toast" id="toast">GET!</div>
+      </div>
+    </div>
+    <div class="deck">
+      <div class="arcade" id="arcadeButtons">
+        <button class="abtn b1 ready" id="b1" aria-label="ボタン1 横に移動（押している間）">①<small>→ 横</small></button>
+        <button class="abtn b2" id="b2" disabled aria-label="ボタン2 奥に移動（押している間）">②<small>↑ 奥</small></button>
+      </div>
+      <div class="dpad" id="dpad" hidden>
+        <span></span><button data-k="b" aria-label="奥へ">↑</button><span></span>
+        <button data-k="l" aria-label="左へ">←</button><button class="drop" id="dropBtn">下降</button><button data-k="r" aria-label="右へ">→</button>
+      </div>
+      <p class="hint" id="hint">①を押している間だけ右へ、離したら②で奥へ。キーボードは → と ↑（または 1 と 2）。</p>
+      <div class="views" role="group" aria-label="視点">
+        <button class="chip" data-view="front" aria-pressed="true">正面</button>
+        <button class="chip" data-view="side" aria-pressed="false">横</button>
+        <button class="chip" data-view="top" aria-pressed="false">真上</button>
+        <button class="chip" data-view="diag" aria-pressed="false">斜め</button>
+        <button class="chip" data-view="follow" aria-pressed="false">フックに寄る</button>
+      </div>
+    </div>
+  </div>
+
+  <aside class="panel" aria-label="設定">
+    <h2>設定</h2>
+    <p class="sub">フック・吊り糸・板側フック・台の置き方の変更は、クレーンが待機中に反映されます。獲得すると板は元の位置に戻ります。</p>
+    <div class="presets" id="presets"></div>
+    <div id="settings"></div>
+    <p class="pending" id="pending"></p>
+    <div class="actions">
+      <button class="btn primary" id="respawn">板を置き直す</button>
+      <button class="btn" id="resetStats">成績をリセット</button>
+      <button class="btn" id="resetAll">設定を初期値に戻す</button>
+    </div>
+    <details class="share" open>
+      <summary>設定を共有する</summary>
+      <p class="note">今の設定（フック・吊り糸・板側フック・台の置き方・クレーンの動きなど）を、URLか短いコードにして渡せます。</p>
+      <div class="actions">
+        <button class="btn primary" id="shareUrl">共有URLをコピー</button>
+        <button class="btn" id="shareCode">共有コードをコピー</button>
+      </div>
+      <textarea id="shareOut" class="sharebox" rows="3" readonly hidden aria-label="共有するURLまたはコード"></textarea>
+      <label class="note" for="shareIn">受け取ったコードかURLを貼り付け</label>
+      <textarea id="shareIn" class="sharebox" rows="2" placeholder="z… で始まるコード、または #s= を含むURL"></textarea>
+      <div class="actions"><button class="btn" id="shareLoad">コードを読み込む</button></div>
+      <p class="pending" id="shareMsg" aria-live="polite"></p>
+    </details>
+  </aside>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script type="module">
+import * as CANNON from 'https://cdn.jsdelivr.net/npm/cannon-es@0.20.0/dist/cannon-es.js';
+const module = undefined;
+// ==== UFO catcher 'hook setting' physics core (cannon-es) ====
+// Units: meters, kilograms, seconds.
+function createHookSim(CANNON, P) {
+  // ---- Accurate Coulomb friction + true force units for joints/motors ----
+  // cannon-es by default clamps friction by mu*m*g (independent of normal force) and compares
+  // limits against impulses. We patch: friction limit = mu * (normal impulse of its contact),
+  // and every other equation's min/maxForce is treated as a real force (N or N*m) * dt.
+  const NP = CANNON.Narrowphase.prototype;
+  if (!NP.__coulombPatched) {
+    const orig = NP.createFrictionEquationsFromContact;
+    NP.createFrictionEquationsFromContact = function (ce, out) {
+      const n = out.length;
+      const r = orig.call(this, ce, out);
+      if (r) {
+        const cmat = this.currentContactMaterial;
+        let mu = cmat.friction;
+        const mA = ce.si.material || ce.bi.material, mB = ce.sj.material || ce.bj.material;
+        if (mA && mB && mA.friction >= 0 && mB.friction >= 0) mu = mA.friction * mB.friction;
+        out[n].__ce = ce; out[n + 1].__ce = ce; out[n].__mu = out[n + 1].__mu = mu;
+      }
+      return r;
+    };
+    NP.__coulombPatched = true;
+  }
+  class CoulombSolver extends CANNON.GSSolver {
+    solve(dt, world) {
+      let iter = 0;
+      const maxIter = this.iterations, tolSquared = this.tolerance * this.tolerance;
+      const eqs = this.equations, Neq = eqs.length, bodies = world.bodies, Nb = bodies.length, h = dt;
+      if (Neq === 0) return 0;
+      for (let i = 0; i !== Nb; i++) bodies[i].updateSolveMassProperties();
+      const lambda = this._l || (this._l = []), invCs = this._c || (this._c = []), Bs = this._b || (this._b = []);
+      const lo = this._lo || (this._lo = []), hi = this._hi || (this._hi = []);
+      lambda.length = invCs.length = Bs.length = lo.length = hi.length = Neq;
+      for (let i = 0; i !== Neq; i++) {
+        const c = eqs[i];
+        c.__i = i; lambda[i] = 0; Bs[i] = c.computeB(h); invCs[i] = 1 / c.computeC();
+        lo[i] = c.minForce * h; hi[i] = c.maxForce * h;
+      }
+      for (let i = 0; i !== Nb; i++) { bodies[i].vlambda.set(0, 0, 0); bodies[i].wlambda.set(0, 0, 0); }
+      for (iter = 0; iter !== maxIter; iter++) {
+        let tot = 0;
+        for (let j = 0; j !== Neq; j++) {
+          const c = eqs[j];
+          let mn = lo[j], mx = hi[j];
+          if (c.__ce) { const k = c.__ce.__i; const lim = (k !== undefined && eqs[k] === c.__ce) ? c.__mu * Math.max(0, lambda[k]) : 0; mn = -lim; mx = lim; }
+          const lj = lambda[j];
+          let d = invCs[j] * (Bs[j] - c.computeGWlambda() - c.eps * lj);
+          if (lj + d < mn) d = mn - lj; else if (lj + d > mx) d = mx - lj;
+          lambda[j] += d; tot += d > 0 ? d : -d;
+          c.addToWlambda(d);
+        }
+        if (tot * tot < tolSquared) break;
+      }
+      for (let i = 0; i !== Nb; i++) {
+        const b = bodies[i];
+        b.vlambda.vmul(b.linearFactor, b.vlambda); b.velocity.vadd(b.vlambda, b.velocity);
+        b.wlambda.vmul(b.angularFactor, b.wlambda); b.angularVelocity.vadd(b.wlambda, b.angularVelocity);
+      }
+      const inv = 1 / h;
+      for (let l = 0; l < Neq; l++) { eqs[l].multiplier = lambda[l] * inv; eqs[l].__i = undefined; }
+      return iter;
+    }
+  }
+
+  // add shapes so that the body origin is the true center of mass (cannon applies gravity at origin)
+  function addCentered(body, parts) {
+    let V = 0; const com = new CANNON.Vec3();
+    parts.forEach(p => { V += p.vol; com.x += p.off.x * p.vol; com.y += p.off.y * p.vol; com.z += p.off.z * p.vol; });
+    com.scale(1 / V, com);
+    parts.forEach(p => body.addShape(p.shape, p.off.vsub(com), p.q));
+    return com;
+  }
+
+  // ---- faster narrowphase for compound bodies made of many small shapes ----
+  if (!NP.__fastContacts) {
+    const PN = new CANNON.Vec3(0, 0, 1), pn = new CANNON.Vec3();
+    const SPH = CANNON.Shape.types.SPHERE, BOX = CANNON.Shape.types.BOX;
+    const ob1 = new CANNON.Vec3(), ob2 = new CANNON.Vec3(), oq = new CANNON.Quaternion();
+    function obbFar(ps, pbx, qb, he, r) {
+      ps.vsub(pbx, ob1); qb.conjugate(oq); oq.vmult(ob1, ob2);
+      return Math.abs(ob2.x) > he.x + r || Math.abs(ob2.y) > he.y + r || Math.abs(ob2.z) > he.z + r;
+    }
+    const cx = [], cq = [], tx = new CANNON.Vec3(), tq = new CANNON.Quaternion(), xi = new CANNON.Vec3(), qi = new CANNON.Quaternion();
+    NP.getContacts = function (p1, p2, world, result, oldcontacts, frictionResult, frictionPool) {
+      this.contactPointPool = oldcontacts; this.frictionEquationPool = frictionPool;
+      this.result = result; this.frictionResult = frictionResult;
+      for (let k = 0, N = p1.length; k !== N; k++) {
+        const bi = p1[k], bj = p2[k];
+        let bodyCM = null;
+        if (bi.material && bj.material) bodyCM = world.getContactMaterial(bi.material, bj.material) || null;
+        const justTest = (bi.type & CANNON.Body.KINEMATIC && bj.type & CANNON.Body.STATIC) || (bi.type & CANNON.Body.STATIC && bj.type & CANNON.Body.KINEMATIC) || (bi.type & CANNON.Body.KINEMATIC && bj.type & CANNON.Body.KINEMATIC);
+        const nj = bj.shapes.length;
+        while (cx.length < nj) { cx.push(new CANNON.Vec3()); cq.push(new CANNON.Quaternion()); }
+        for (let j = 0; j < nj; j++) {
+          bj.quaternion.mult(bj.shapeOrientations[j], cq[j]);
+          bj.quaternion.vmult(bj.shapeOffsets[j], cx[j]); cx[j].vadd(bj.position, cx[j]);
+        }
+        // plane fast path: reject shapes that are clearly in front of the plane
+        const planeI = bi.shapes.length === 1 && bi.shapes[0].type === CANNON.Shape.types.PLANE;
+        const planeJ = nj === 1 && bj.shapes[0].type === CANNON.Shape.types.PLANE;
+        if (planeI || planeJ) {
+          const pb = planeI ? bi : bj, ob = planeI ? bj : bi;
+          pb.quaternion.vmult(PN, pn);
+          for (let i = 0; i < ob.shapes.length; i++) {
+            const so = ob.shapes[i];
+            ob.quaternion.vmult(ob.shapeOffsets[i], xi); xi.vadd(ob.position, xi);
+            const d = (xi.x - pb.position.x) * pn.x + (xi.y - pb.position.y) * pn.y + (xi.z - pb.position.z) * pn.z;
+            if (d > so.boundingSphereRadius) continue;
+            const sp = pb.shapes[0];
+            if (!(so.collisionFilterMask & sp.collisionFilterGroup && sp.collisionFilterMask & so.collisionFilterGroup)) continue;
+            let scm = null;
+            if (so.material && sp.material) scm = world.getContactMaterial(so.material, sp.material) || null;
+            this.currentContactMaterial = scm || bodyCM || world.defaultContactMaterial;
+            const resolver = this[so.type | sp.type]; if (!resolver) continue;
+            ob.quaternion.mult(ob.shapeOrientations[i], qi);
+            tx.copy(pb.position); tq.copy(pb.quaternion);
+            if (so.type < sp.type) resolver.call(this, so, sp, xi, tx, qi, tq, ob, pb, so, sp, justTest);
+            else resolver.call(this, sp, so, tx, xi, tq, qi, pb, ob, sp, so, justTest);
+          }
+          continue;
+        }
+        // world AABB of bj's shapes, to cull bi's shapes quickly
+        let ax0 = 1e9, ay0 = 1e9, az0 = 1e9, ax1 = -1e9, ay1 = -1e9, az1 = -1e9;
+        for (let j = 0; j < nj; j++) {
+          const rr = bj.shapes[j].boundingSphereRadius, c = cx[j];
+          if (c.x - rr < ax0) ax0 = c.x - rr; if (c.x + rr > ax1) ax1 = c.x + rr;
+          if (c.y - rr < ay0) ay0 = c.y - rr; if (c.y + rr > ay1) ay1 = c.y + rr;
+          if (c.z - rr < az0) az0 = c.z - rr; if (c.z + rr > az1) az1 = c.z + rr;
+        }
+        for (let i = 0; i < bi.shapes.length; i++) {
+          const si = bi.shapes[i];
+          bi.quaternion.vmult(bi.shapeOffsets[i], xi); xi.vadd(bi.position, xi);
+          const ri = si.boundingSphereRadius;
+          if (xi.x + ri < ax0 || xi.x - ri > ax1 || xi.y + ri < ay0 || xi.y - ri > ay1 || xi.z + ri < az0 || xi.z - ri > az1) continue;
+          bi.quaternion.mult(bi.shapeOrientations[i], qi);
+          for (let j = 0; j < nj; j++) {
+            const sj = bj.shapes[j];
+            if (!(si.collisionFilterMask & sj.collisionFilterGroup && sj.collisionFilterMask & si.collisionFilterGroup)) continue;
+            const r = si.boundingSphereRadius + sj.boundingSphereRadius;
+            const dx = xi.x - cx[j].x, dy = xi.y - cx[j].y, dz = xi.z - cx[j].z;
+            if (dx * dx + dy * dy + dz * dz > r * r) continue;
+            // sphere vs box: cheap oriented-box rejection before the full test
+            if (si.type === SPH && sj.type === BOX) { if (obbFar(xi, cx[j], cq[j], sj.halfExtents, si.radius)) continue; }
+            else if (sj.type === SPH && si.type === BOX) { if (obbFar(cx[j], xi, qi, si.halfExtents, sj.radius)) continue; }
+            let scm = null;
+            if (si.material && sj.material) scm = world.getContactMaterial(si.material, sj.material) || null;
+            this.currentContactMaterial = scm || bodyCM || world.defaultContactMaterial;
+            const resolver = this[si.type | sj.type];
+            if (!resolver) continue;
+            tx.copy(cx[j]); tq.copy(cq[j]);
+            let ret;
+            if (si.type < sj.type) ret = resolver.call(this, si, sj, xi, tx, qi, tq, bi, bj, si, sj, justTest);
+            else ret = resolver.call(this, sj, si, tx, xi, tq, qi, bj, bi, si, sj, justTest);
+            if (ret && justTest) { world.shapeOverlapKeeper.set(si.id, sj.id); world.bodyOverlapKeeper.set(bi.id, bj.id); }
+          }
+        }
+      }
+    };
+    NP.__fastContacts = true;
+  }
+
+  // Cable: one-sided distance constraint (can only pull)
+  class RopeConstraint extends CANNON.Constraint {
+    constructor(a, b, pivotB, distance) {
+      super(a, b, { collideConnected: false });
+      this.pivotB = pivotB; this.distance = distance;
+      const eq = this.eq = new CANNON.ContactEquation(a, b);
+      eq.minForce = -1e6; eq.maxForce = 0;
+      this.equations.push(eq);
+      this._pw = new CANNON.Vec3();
+    }
+    update() {
+      const a = this.bodyA, b = this.bodyB, eq = this.eq;
+      b.quaternion.vmult(this.pivotB, eq.rj);
+      b.position.vadd(eq.rj, this._pw);
+      this._pw.vsub(a.position, eq.ni);
+      eq.ni.normalize();
+      eq.ni.scale(this.distance, eq.ri);
+    }
+  }
+
+  // Tether: a chain can never be longer than its length -> one-sided max-distance between two pivots.
+  // (long-range attachment; keeps a light chain from stretching under a heavy load)
+  class TetherConstraint extends CANNON.Constraint {
+    constructor(a, pivotA, b, pivotB, distance) {
+      super(a, b, { collideConnected: true });
+      this.pivotA = pivotA; this.pivotB = pivotB; this.distance = distance;
+      const eq = this.eq = new CANNON.ContactEquation(a, b);
+      eq.minForce = -1e6; eq.maxForce = 0;
+      this.equations.push(eq);
+      this._pa = new CANNON.Vec3(); this._pb = new CANNON.Vec3(); this._ra = new CANNON.Vec3();
+    }
+    update() {
+      const a = this.bodyA, b = this.bodyB, eq = this.eq;
+      a.quaternion.vmult(this.pivotA, this._ra); a.position.vadd(this._ra, this._pa);
+      b.quaternion.vmult(this.pivotB, eq.rj); b.position.vadd(eq.rj, this._pb);
+      this._pb.vsub(this._pa, eq.ni);
+      const len = eq.ni.length();
+      eq.ni.normalize();
+      eq.ni.scale(this.distance, eq.ri); eq.ri.vadd(this._ra, eq.ri);
+      eq.enabled = len > this.distance - 0.002;
+    }
+  }
+
+  const world = new CANNON.World();
+  world.solver = new CoulombSolver();
+  world.gravity.set(0, -P.gravity, 0);
+  world.broadphase = new CANNON.SAPBroadphase(world);
+  world.allowSleep = false;
+  world.solver.iterations = P.iterations;
+  world.solver.tolerance = 1e-8;
+
+  const M = { W: 0.70, D: 0.50, topY: 0.78 };
+  M.home = { x: -0.26, z: 0.16 };
+  const G = { STATIC: 1, HEAD: 2, CHAIN: 4, HOOK: 8, BOARD: 16, NONE: 32 };
+
+  const mat = { floor: new CANNON.Material('floor'), steel: new CANNON.Material('steel'),
+    ring: new CANNON.Material('ring'), board: new CANNON.Material('board') };
+  const cm = (a, b, f, r) => {
+    const c = new CANNON.ContactMaterial(a, b, { friction: f, restitution: r,
+      contactEquationStiffness: 1e8, contactEquationRelaxation: 3,
+      frictionEquationStiffness: 1e8, frictionEquationRelaxation: 3 });
+    world.addContactMaterial(c); return c;
+  };
+  const cms = {
+    steelRing: cm(mat.steel, mat.ring, P.hookFriction, 0.1),
+    steelBoard: cm(mat.steel, mat.board, 0.35, 0.1),
+    steelFloor: cm(mat.steel, mat.floor, 0.35, 0.1),
+    boardFloor: cm(mat.board, mat.floor, P.boardFriction, 0.05),
+    ringFloor: cm(mat.ring, mat.floor, 0.4, 0.05),
+  };
+
+  // ---------- static machine ----------
+  const statics = [];
+  function addStaticBox(cx, cy, cz, hx, hy, hz, kind) {
+    const b = new CANNON.Body({ mass: 0, material: mat.floor,
+      collisionFilterGroup: G.STATIC, collisionFilterMask: G.HEAD | G.CHAIN | G.HOOK | G.BOARD });
+    b.addShape(new CANNON.Box(new CANNON.Vec3(hx, hy, hz)));
+    b.position.set(cx, cy, cz);
+    world.addBody(b);
+    statics.push({ body: b, kind, he: [hx, hy, hz] });
+  }
+  // planes are much cheaper to collide against than boxes (cabinet is a closed box anyway)
+  const t = 0.02, W = M.W, D = M.D, wh = M.topY / 2 + 0.05;
+  function addPlane(px, py, pz, ax, ay, az, kind, he, vis) {
+    const b = new CANNON.Body({ mass: 0, material: mat.floor,
+      collisionFilterGroup: G.STATIC, collisionFilterMask: G.HEAD | G.CHAIN | G.HOOK | G.BOARD });
+    b.addShape(new CANNON.Plane());
+    // Plane normal is +z in body space: rotate it to (ax, ay, az)
+    const q = new CANNON.Quaternion(); q.setFromVectors(new CANNON.Vec3(0, 0, 1), new CANNON.Vec3(ax, ay, az));
+    b.quaternion.copy(q); b.position.set(px, py, pz);
+    world.addBody(b);
+    statics.push({ body: { position: new CANNON.Vec3(vis[0], vis[1], vis[2]) }, kind, he });
+  }
+  addPlane(0, 0, 0, 0, 1, 0, 'floor', [W / 2, t, D / 2], [0, -t, 0]);
+  addPlane(0, 0, -D / 2, 0, 0, 1, 'wall', [W / 2 + 2 * t, wh, t], [0, wh - 0.05, -D / 2 - t]);
+  addPlane(0, 0, D / 2, 0, 0, -1, 'glass', [W / 2 + 2 * t, wh, t], [0, wh - 0.05, D / 2 + t]);
+  addPlane(-W / 2, 0, 0, 1, 0, 0, 'wall', [t, wh, D / 2], [-W / 2 - t, wh - 0.05, 0]);
+  addPlane(W / 2, 0, 0, -1, 0, 0, 'wall', [t, wh, D / 2], [W / 2 + t, wh - 0.05, 0]);
+
+  // ---------- geometry helpers ----------
+  // sample a polyline path (array of [x,y]) into points spaced by ds
+  function resample(path, ds) {
+    const out = [path[0]];
+    let acc = 0;
+    for (let i = 1; i < path.length; i++) {
+      const [x0, y0] = path[i - 1], [x1, y1] = path[i];
+      const L = Math.hypot(x1 - x0, y1 - y0);
+      let s = ds - acc;
+      while (s <= L) { const f = s / L; out.push([x0 + (x1 - x0) * f, y0 + (y1 - y0) * f]); s += ds; }
+      acc = (acc + L) % ds;
+    }
+    const last = path[path.length - 1], pl = out[out.length - 1];
+    if (Math.hypot(last[0] - pl[0], last[1] - pl[1]) > ds * 0.3) out.push(last);
+    return out;
+  }
+  function arc(cx, cy, r, a0, a1, n) {
+    const pts = [];
+    for (let i = 0; i <= n; i++) { const a = a0 + (a1 - a0) * i / n; pts.push([cx + r * Math.cos(a), cy + r * Math.sin(a)]); }
+    return pts;
+  }
+  const deg = Math.PI / 180;
+
+  // S-hook centerline in its local x-y plane. Spine on x=0 from y=0 to y=L.
+  function sHookPath() {
+    const L = P.hookSpine, Rb = P.hookRadius, Rt = P.hookTopRadius;
+    const ab = P.hookWrap * deg, at = 40 * deg;
+    const pts = [];
+    // top curl: center (-Rt, L), from angle 180+at (tip) back to 0 (joins spine)
+    arc(-Rt, L, Rt, Math.PI + at, 0, 40).forEach(p => pts.push(p));
+    pts.push([0, 0]);
+    // bottom curl: center (Rb, 0): from (0,0) down around the bottom and up the far side, then wrapping back by ab
+    arc(Rb, 0, Rb, Math.PI, 2 * Math.PI + ab, 50).slice(1).forEach(p => pts.push(p));
+    return pts;
+  }
+  // crane-side tool: S-hook or O-ring. Returns centerline, closed flag and hanging point (local)
+  function toolShape() {
+    const wr = P.hookWire / 2;
+    if (P.toolType === 'O') {
+      const R = P.oRadius + wr; // centerline radius from inner radius
+      return { pts: arc(0, 0, R, Math.PI / 2, Math.PI / 2 + 2 * Math.PI, 72).slice(0, -1), closed: true, hang: [0, R] };
+    }
+    return { pts: sHookPath(), closed: false, hang: [-P.hookTopRadius, P.hookSpine + P.hookTopRadius - wr] };
+  }
+  // target ring centerline in local x-y plane with y=0 at board surface
+  function ringPath() {
+    const pr = P.ringPipe, w = P.ringWidth, H = P.ringHeight;
+    if (P.ringType === 'D') {
+      const R = w / 2, hl = Math.max(0, H - R - pr);
+      return [[-R, -pr * 0.5], [-R, hl], ...arc(0, hl, R, Math.PI, 0, 36).slice(1), [R, -pr * 0.5]];
+    }
+    if (P.ringType === 'O') {
+      const R = w / 2, cy = Math.max(R + pr * 1.5, H - R - pr);
+      return arc(0, cy, R, -Math.PI / 2, 1.5 * Math.PI, 60);
+    }
+    // '?' : stem then a curl opening downward on the left
+    const rq = w / 2, hs = Math.max(pr, H - 2 * rq - pr);
+    const te = Math.PI + P.qGap * deg;
+    const pts = [[0, -pr * 0.5], [0, hs], ...arc(0, hs + rq, rq, -Math.PI / 2, te, 48).slice(1)];
+    if (P.qTip > 0) { const e = pts[pts.length - 1]; pts.push([e[0] - Math.sin(te) * P.qTip, e[1] + Math.cos(te) * P.qTip]); }
+    return pts;
+  }
+  function ringPost() { // O-ring needs a small post holding it
+    if (P.ringType !== 'O') return null;
+    const R = P.ringWidth / 2, cy = Math.max(R + P.ringPipe * 1.5, P.ringHeight - R - P.ringPipe);
+    return { h: cy - R, w: P.ringPipe * 1.6 };
+  }
+
+  // ---------- crane, chain and hook ----------
+  const crane = { x: M.home.x, z: M.home.z, vx: 0, vz: 0, ropeTarget: P.ropeMin };
+  const carriage = new CANNON.Body({ mass: 0, type: CANNON.Body.KINEMATIC, collisionFilterGroup: G.NONE, collisionFilterMask: 0 });
+  carriage.position.set(crane.x, M.topY, crane.z);
+  world.addBody(carriage);
+
+  let head, ropeC, links = [], joints = [], hook, hookInfo = null;
+  function buildCrane() {
+    const hubR = P.headRadius, hubH = P.headHeight;
+    const y0 = M.topY - P.ropeMin;
+    // The crane head is rigid: it follows the carriage exactly and is lowered straight down
+    // (kinematic body = infinitely stiff machine). Only the chain and hook below it swing.
+    head = new CANNON.Body({ mass: 0, type: CANNON.Body.KINEMATIC, material: mat.steel,
+      collisionFilterGroup: G.HEAD, collisionFilterMask: G.BOARD });
+    head.addShape(new CANNON.Cylinder(hubR, hubR, hubH, 16));
+    head.position.set(crane.x, y0 - hubH / 2, crane.z);
+    world.addBody(head);
+
+    // chain
+    const n = Math.max(1, Math.round(P.chainLength / P.chainLinkLen));
+    const ll = P.chainLength / n, cr = P.chainThick / 2;
+    links = []; joints = [];
+    let prev = head, prevPivot = new CANNON.Vec3(0, -hubH / 2, 0);
+    let y = head.position.y - hubH / 2;
+    for (let i = 0; i < n; i++) {
+      const b = new CANNON.Body({ mass: P.chainLinkMass, material: mat.steel,
+        collisionFilterGroup: G.CHAIN, collisionFilterMask: G.STATIC | G.BOARD,
+        linearDamping: P.airDamping, angularDamping: P.chainDamping });
+      const k = Math.max(2, Math.ceil((ll - 2 * cr) / (cr * 1.2)) + 1);
+      for (let s = 0; s < k; s++) b.addShape(new CANNON.Sphere(cr), new CANNON.Vec3(0, -(ll / 2 - cr) + (ll - 2 * cr) * s / (k - 1), 0));
+      b.position.set(crane.x, y - ll / 2, crane.z);
+      world.addBody(b);
+      const j = new CANNON.PointToPointConstraint(prev, prevPivot, b, new CANNON.Vec3(0, ll / 2, 0));
+      world.addConstraint(j); joints.push(j);
+      links.push({ body: b, len: ll, r: cr, idx: i });
+      prev = b; prevPivot = new CANNON.Vec3(0, -ll / 2, 0); y -= ll;
+    }
+    // S-hook made of overlapping spheres along its centerline
+    const wr = P.hookWire / 2;
+    const tool = toolShape();
+    const path = resample(tool.closed ? [...tool.pts, tool.pts[0]] : tool.pts, wr * 0.9);
+    if (tool.closed) path.pop();
+    hook = new CANNON.Body({ mass: P.hookMass, material: mat.steel,
+      collisionFilterGroup: G.HOOK, collisionFilterMask: G.STATIC | G.BOARD,
+      linearDamping: P.airDamping, angularDamping: P.chainDamping });
+    const com = addCentered(hook, path.map(p => ({ shape: new CANNON.Sphere(wr), off: new CANNON.Vec3(p[0], p[1], 0), vol: 1 })));
+    const hang = new CANNON.Vec3(tool.hang[0], tool.hang[1], 0).vsub(com);
+    hook.position.set(crane.x - hang.x, y - hang.y, crane.z);
+    world.addBody(hook);
+    const hj = new CANNON.PointToPointConstraint(prev, prevPivot, hook, hang);
+    world.addConstraint(hj); joints.push(hj);
+    // tethers from the head to every link end and to the hook
+    const headPivot = new CANNON.Vec3(0, -hubH / 2, 0);
+    links.forEach((l, i) => {
+      const tc = new TetherConstraint(head, headPivot, l.body, new CANNON.Vec3(0, -ll / 2, 0), ll * (i + 1));
+      world.addConstraint(tc); joints.push(tc);
+    });
+    const th = new TetherConstraint(head, headPivot, hook, hang, P.chainLength);
+    world.addConstraint(th); joints.push(th);
+    hookInfo = { path, com, wr, hang, closed: tool.closed };
+  }
+
+  // ---------- board with rings ----------
+  let board, boardInfo = null;
+  function ringOffsets(n) {
+    const bw = P.boardWidth;
+    if (n === 1) return [0];
+    if (n === 2) return [-bw / 4, bw / 4];
+    return [-bw / 3, 0, bw / 3];
+  }
+  // ---------- tension rods (突っ張り棒) holding the board in the air ----------
+  let rods = [];
+  const rodMat = new CANNON.Material('rod');
+  world.addContactMaterial(new CANNON.ContactMaterial(mat.board, rodMat, { friction: P.rodFriction, restitution: 0.05,
+    contactEquationStiffness: 1e8, contactEquationRelaxation: 3, frictionEquationStiffness: 1e8, frictionEquationRelaxation: 3 }));
+  const cmBoardRod = world.contactmaterials[world.contactmaterials.length - 1];
+  function buildRods() {
+    rods.forEach(r => world.removeBody(r.body)); rods = [];
+    if (P.support !== 'rods') return;
+    const r = P.rodRadius, alongX = P.rodDir === 'x';
+    const len = alongX ? W : D, ds = r * 0.5;
+    const n = Math.ceil(len / ds) + 1;
+    [-1, 1].forEach(sgn => {
+      const b = new CANNON.Body({ mass: 0, material: rodMat,
+        collisionFilterGroup: G.STATIC, collisionFilterMask: G.CHAIN | G.HOOK | G.BOARD });
+      // round rod as a row of spheres for the hook / chain / rings ...
+      for (let i = 0; i < n; i++) {
+        const u = -len / 2 + len * i / (n - 1);
+        const sh = new CANNON.Sphere(r); sh.material = rodMat; sh.collisionFilterMask = ~64;
+        b.addShape(sh, alongX ? new CANNON.Vec3(u, 0, 0) : new CANNON.Vec3(0, 0, u));
+      }
+      // ... and one box with the same top line for the board plate (few contact points, cheap & stable)
+      const bx = new CANNON.Box(alongX ? new CANNON.Vec3(len / 2, r, r * 0.7) : new CANNON.Vec3(r * 0.7, r, len / 2));
+      bx.material = rodMat; bx.collisionFilterGroup = 256; bx.collisionFilterMask = 64;
+      b.addShape(bx);
+      const off = sgn * P.rodSpacing / 2;
+      if (alongX) b.position.set(0, P.rodHeight, P.boardZ + off); else b.position.set(P.boardX + off, P.rodHeight, 0);
+      world.addBody(b);
+      rods.push({ body: b, alongX, len, r, y: P.rodHeight, c: alongX ? b.position.z : b.position.x });
+    });
+  }
+  function buildBoard() {
+    const bw = P.boardWidth, bd = P.boardDepth, bt = 0.012;
+    board = new CANNON.Body({ mass: P.boardMass, material: mat.board,
+      collisionFilterGroup: G.BOARD, collisionFilterMask: G.STATIC | G.HEAD | G.CHAIN | G.HOOK,
+      linearDamping: 0.02, angularDamping: 0.05 });
+    const plate = new CANNON.Box(new CANNON.Vec3(bw / 2, bt / 2, bd / 2)); plate.collisionFilterGroup = 64;
+    const parts = [{ shape: plate, off: new CANNON.Vec3(0, 0, 0), vol: bw * bt * bd }];
+    const pr = P.ringPipe / 2;
+    const rpath = resample(ringPath(), pr * 0.9);
+    const rings = [];
+    const sphereVol = 4 / 3 * Math.PI * pr ** 3 * 0.4;
+    ringOffsets(P.ringCount).forEach((ox, i) => {
+      let ang = P.ringAngle;
+      if (P.ringAngleMode === 'random') ang = Math.round((Math.random() * 180 - 90));
+      const a = ang * deg, ca = Math.cos(a), sa = Math.sin(a);
+      // ring plane: local x along (ca, 0, -sa) rotated around y
+      const pts = rpath.map(([x, y]) => new CANNON.Vec3(ox + x * ca, bt / 2 + y, -x * sa));
+      pts.forEach(p => {
+        const s = new CANNON.Sphere(pr); s.material = mat.ring;
+        parts.push({ shape: s, off: p, vol: sphereVol });
+      });
+      const post = ringPost();
+      if (post) {
+        const s = new CANNON.Box(new CANNON.Vec3(post.w / 2, post.h / 2, post.w / 2)); s.material = mat.ring;
+        parts.push({ shape: s, off: new CANNON.Vec3(ox, bt / 2 + post.h / 2, 0), vol: post.w * post.w * post.h * 0.4 });
+      }
+      rings.push({ ox, angle: ang, path: rpath.map(([x, y]) => [ox + x * ca, bt / 2 + y, -x * sa]), post });
+    });
+    const com = addCentered(board, parts);
+    buildRods();
+    const baseY = P.support === 'rods' ? P.rodHeight + P.rodRadius : 0;
+    board.position.set(P.boardX + com.x, baseY + bt / 2 + 0.0005 + com.y, P.boardZ + com.z);
+    world.addBody(board);
+    boardInfo = { bw, bd, bt, com, rings, pr, y0: board.position.y };
+  }
+
+  // ---------- state machine ----------
+  const S = { state: 'idle', timer: 0, mode: P.mode, btn1: false, btn2: false, btn1Used: false,
+    keys: { l: false, r: false, f: false, b: false }, dropReq: false, won: false, liftT: 0, maxLift: 0, onEvent: null };
+  const emit = (e, d) => S.onEvent && S.onEvent(e, d);
+  const hubTopV = new CANNON.Vec3();
+  // highest point of the board/rings within the head's footprint (or the floor)
+  const _w = new CANNON.Vec3(), _c = new CANNON.Vec3();
+  function obstacleTopUnderHead() {
+    let top = 0;
+    const hx = crane.x, hz = crane.z, R = P.headRadius;
+    rods.forEach(rd => { const d = Math.abs((rd.alongX ? hz : hx) - rd.c); if (d < R + rd.r) top = Math.max(top, rd.y + rd.r); });
+    const b = board;
+    for (let i = 0; i < b.shapes.length; i++) {
+      const sh = b.shapes[i];
+      b.quaternion.vmult(b.shapeOffsets[i], _w); _w.vadd(b.position, _w);
+      if (sh.type === CANNON.Shape.types.SPHERE) {
+        if (Math.hypot(_w.x - hx, _w.z - hz) < R + sh.radius) top = Math.max(top, _w.y + sh.radius);
+      } else if (sh.type === CANNON.Shape.types.BOX) {
+        // test the box's top face corners + closest point in the horizontal plane
+        const he = sh.halfExtents, q = b.quaternion.mult(b.shapeOrientations[i]);
+        let minx = 1e9, maxx = -1e9, minz = 1e9, maxz = -1e9, maxy = -1e9;
+        for (const sx of [-1, 1]) for (const sy of [-1, 1]) for (const sz of [-1, 1]) {
+          q.vmult(new CANNON.Vec3(sx * he.x, sy * he.y, sz * he.z), _c); _c.vadd(_w, _c);
+          minx = Math.min(minx, _c.x); maxx = Math.max(maxx, _c.x); minz = Math.min(minz, _c.z); maxz = Math.max(maxz, _c.z); maxy = Math.max(maxy, _c.y);
+        }
+        const dx = Math.max(minx - hx, 0, hx - maxx), dz = Math.max(minz - hz, 0, hz - maxz);
+        if (Math.hypot(dx, dz) < R) top = Math.max(top, maxy);
+      }
+    }
+    return top;
+  }
+  function headTop() { head.quaternion.vmult(new CANNON.Vec3(0, P.headHeight / 2, 0), hubTopV); return hubTopV.vadd(head.position); }
+
+  function start() {
+    if (S.state !== 'idle') return;
+    S.mode = P.mode;
+    S.state = S.mode === 'button' ? 'moveX' : 'free';
+    S.won = false; S.liftT = 0; S.maxLift = 0;
+    emit('start');
+  }
+  const rampVel = (v, tv, dt) => v < tv ? Math.min(tv, v + P.accel * dt) : Math.max(tv, v - P.accel * dt);
+  const lim = () => ({ x0: -W / 2 + P.headRadius, x1: W / 2 - P.headRadius, z0: -D / 2 + P.headRadius, z1: D / 2 - P.headRadius });
+
+  function updateCrane(dt) {
+    let tvx = 0, tvz = 0;
+    const L = lim();
+    switch (S.state) {
+      case 'moveX':
+        if (S.btn1) { tvx = P.speedX; S.btn1Used = true; } else if (S.btn1Used) S.state = 'waitZ';
+        if (crane.x >= L.x1 - 1e-4) S.state = 'waitZ';
+        break;
+      case 'waitZ': if (S.btn2) S.state = 'moveZ'; break;
+      case 'moveZ':
+        if (S.btn2) tvz = -P.speedZ; else { S.state = 'drop'; S.timer = 0; }
+        if (crane.z <= L.z0 + 1e-4) { S.state = 'drop'; S.timer = 0; }
+        break;
+      case 'free': {
+        const k = S.keys;
+        tvx = ((k.r ? 1 : 0) - (k.l ? 1 : 0)) * P.speedX;
+        tvz = ((k.f ? 1 : 0) - (k.b ? 1 : 0)) * P.speedZ;
+        if (S.dropReq) { S.dropReq = false; S.state = 'drop'; S.timer = 0; tvx = tvz = 0; }
+        break;
+      }
+      case 'drop':
+        S.timer += dt;
+        if (S.timer > P.dropDelay && Math.hypot(crane.vx, crane.vz) < 1e-4) { S.state = 'descend'; S.timer = 0; emit('descend'); }
+        break;
+      case 'descend': {
+        S.timer += dt;
+        // contact sensor: the rigid head stops when its bottom reaches the board / rings below it
+        const maxDrop = M.topY - P.headHeight - obstacleTopUnderHead() - 0.002;
+        const next = Math.min(P.ropeMax, crane.ropeTarget + P.speedDown * dt);
+        if (next >= maxDrop) { crane.ropeTarget = Math.max(crane.ropeTarget, Math.min(next, maxDrop)); S.state = 'bottom'; S.timer = 0; emit('touch'); }
+        else { crane.ropeTarget = next; if (next >= P.ropeMax - 1e-6) { S.state = 'bottom'; S.timer = 0; emit('bottom'); } }
+        break;
+      }
+      case 'bottom':
+        S.timer += dt;
+        if (S.timer > P.bottomWait) { S.state = 'lift'; S.timer = 0; }
+        break;
+      case 'lift':
+        crane.ropeTarget = Math.max(P.ropeMin, crane.ropeTarget - P.speedUp * dt);
+        if (crane.ropeTarget <= P.ropeMin + 1e-6) { S.state = 'topPause'; S.timer = 0; }
+        break;
+      case 'topPause':
+        S.timer += dt; if (S.timer > 0.5) S.state = 'return';
+        break;
+      case 'return': {
+        const dx = M.home.x - crane.x, dz = M.home.z - crane.z, dist = Math.hypot(dx, dz);
+        const vmax = Math.min(P.speedReturn, Math.sqrt(2 * P.accel * Math.max(0, dist - 0.0005)));
+        if (dist < 0.002 && Math.hypot(crane.vx, crane.vz) < 0.01) {
+          crane.vx = crane.vz = 0; crane.x = M.home.x; crane.z = M.home.z; S.state = 'settle'; S.timer = 0;
+        } else { tvx = dx / (dist || 1) * vmax; tvz = dz / (dist || 1) * vmax; }
+        break;
+      }
+      case 'settle':
+        S.timer += dt;
+        if (S.timer > 1.0) { S.state = 'idle'; S.btn1Used = false; emit('end', { won: S.won }); }
+        break;
+    }
+    crane.vx = rampVel(crane.vx, tvx, dt); crane.vz = rampVel(crane.vz, tvz, dt);
+    crane.x += crane.vx * dt; crane.z += crane.vz * dt;
+    if (crane.x < L.x0) { crane.x = L.x0; crane.vx = 0; }
+    if (crane.x > L.x1) { crane.x = L.x1; crane.vx = 0; }
+    if (crane.z < L.z0) { crane.z = L.z0; crane.vz = 0; }
+    if (crane.z > L.z1) { crane.z = L.z1; crane.vz = 0; }
+    carriage.velocity.set(crane.vx, 0, crane.vz);
+    carriage.position.set(crane.x, M.topY, crane.z);
+    // move the rigid head (kinematic: set velocity so contacts and joints see the true motion)
+    const hy = M.topY - crane.ropeTarget - P.headHeight / 2;
+    const vy = (hy - head.position.y) / dt;
+    head.velocity.set(crane.vx, vy, crane.vz);
+    head.angularVelocity.set(0, 0, 0);
+    head.quaternion.set(0, 0, 0, 1);
+    head.position.set(crane.x - crane.vx * dt, hy - vy * dt, crane.z - crane.vz * dt); // integrator moves it to target
+  }
+
+  function checkWin(dt) {
+    const lift = board.position.y - boardInfo.y0;
+    if (S.state !== 'idle') S.maxLift = Math.max(S.maxLift, lift);
+    const active = ['lift', 'topPause', 'return', 'settle'].includes(S.state);
+    if (!S.won && active && lift > P.winLift) {
+      S.liftT += dt;
+      if (S.liftT > 0.25) { S.won = true; emit('win'); }
+    } else if (lift <= P.winLift) S.liftT = 0;
+    // safety
+    [board, hook, head].forEach(b => { if (!isFinite(b.position.x) || b.position.y < -1 || b.position.y > 3) S.broken = true; });
+  }
+
+  let lastDt = 0;
+  function tune(dt) {
+    world.constraints.forEach(c => c.equations.forEach(eq => eq.setSpookParams(5e7, 3, dt)));
+    lastDt = dt;
+  }
+  function step(dt) {
+    if (dt !== lastDt || S.needTune) { tune(dt); S.needTune = false; }
+    updateCrane(dt);
+    world.step(dt);
+    checkWin(dt);
+  }
+
+  function removeCrane() {
+    if (!head) return;
+    joints.forEach(j => world.removeConstraint(j));
+    links.forEach(l => world.removeBody(l.body)); world.removeBody(hook); world.removeBody(head);
+  }
+  function resetCrane() {
+    removeCrane();
+    crane.x = M.home.x; crane.z = M.home.z; crane.vx = crane.vz = 0; crane.ropeTarget = P.ropeMin;
+    carriage.position.set(crane.x, M.topY, crane.z);
+    S.state = 'idle'; S.btn1 = S.btn2 = false; S.btn1Used = false;
+    buildCrane(); S.needTune = true;
+  }
+  function resetBoard() { if (board) world.removeBody(board); buildBoard(); }
+  function applyLive() {
+    world.gravity.set(0, -P.gravity, 0);
+    world.solver.iterations = P.iterations;
+    cms.steelRing.friction = P.hookFriction;
+    cms.boardFloor.friction = P.boardFriction;
+    cmBoardRod.friction = P.rodFriction;
+    links.forEach(l => { l.body.linearDamping = P.airDamping; });
+    if (hook) hook.linearDamping = P.airDamping;
+    if (S.state === 'idle') S.mode = P.mode;
+  }
+
+  resetCrane(); resetBoard();
+
+  return {
+    world, M, P, S, crane, carriage, statics, step, start, resetCrane, resetBoard, applyLive, headTop,
+    get head() { return head; }, get hook() { return hook; }, get links() { return links; }, get board() { return board; },
+    get hookInfo() { return hookInfo; }, get boardInfo() { return boardInfo; }, get rods() { return rods; },
+    ropeActual() { return crane.ropeTarget; },
+    swingDeg() { // angle of the chain line (head bottom -> hook) from vertical
+      const a = links.length ? links[0].body.position : head.position, b = hook.position;
+      return Math.atan2(Math.hypot(b.x - a.x, b.z - a.z), a.y - b.y) * 180 / Math.PI;
+    },
+    hookYaw() { // direction the lower hook opens toward, degrees (0 = right, 90 = back)
+      const v = hook.quaternion.vmult(new CANNON.Vec3(1, 0, 0));
+      return Math.atan2(-v.z, v.x) * 180 / Math.PI;
+    },
+    boardLift() { return board.position.y - boardInfo.y0; },
+  };
+}
+if (typeof module !== 'undefined') module.exports = { createHookSim };
+
+// ================= App (hook setting) =================
+const DEFAULTS = {
+  mode: 'button',
+  speedX: 0.12, speedZ: 0.10, accel: 0.6, speedDown: 0.15, speedUp: 0.12, speedReturn: 0.15, dropDelay: 0.3, bottomWait: 0.6,
+  ropeMin: 0.12, ropeMax: 0.5, airDamping: 0.15, slackDetect: 0.006,
+  headRadius: 0.04, headHeight: 0.06, headMass: 0.8,
+  chainLength: 0.15, chainLinkLen: 0.015, chainThick: 0.005, chainLinkMass: 0.004, chainDamping: 0.3,
+  hookSpine: 0.045, hookRadius: 0.015, hookTopRadius: 0.011, hookWrap: 35, hookWire: 0.004, hookMass: 0.02, hookFriction: 0.3,
+  toolType: 'S', oRadius: 0.022, qTip: 0,
+  support: 'floor', rodHeight: 0.15, rodSpacing: 0.10, rodDir: 'x', rodRadius: 0.01, rodFriction: 0.4,
+  ringType: 'D', ringWidth: 0.05, ringHeight: 0.055, ringPipe: 0.008, qGap: 30, ringCount: 2, ringAngle: 0, ringAngleMode: 'fixed',
+  boardWidth: 0.26, boardDepth: 0.16, boardMass: 0.25, boardFriction: 0.5, boardX: 0.05, boardZ: -0.05, winLift: 0.04,
+  gravity: 9.81, iterations: 40, dt: 1 / 240, timeScale: 1,
+  guide: false, lastMark: true, inset: true,
+};
+
+const SPEC = [
+  { g: 'クレーン側のフック', open: true, items: [
+    { k: 'toolType', label: '形', type: 'select', options: [['S', 'S字フック'], ['O', 'Oリング']], t: 'crane' },
+    { k: 'oRadius', label: 'Oリングの内側の半径', min: 0.8, max: 4, step: 0.05, unit: 'cm', mul: 0.01, t: 'crane',
+      note: 'Oリングのときだけ使います。' },
+    { k: 'hookRadius', label: 'S字：下の曲がりの半径', min: 0.6, max: 3, step: 0.05, unit: 'cm', mul: 0.01, t: 'crane',
+      note: 'ここからの4項目はS字フックのときだけ使います。' },
+    { k: 'hookWrap', label: 'S字：先端の巻き込み', min: 0, max: 80, step: 1, unit: '°', mul: 1, t: 'crane',
+      note: '大きいほど先端が軸側へ戻り、開口部のすき間が狭くなります（HUDに実寸を表示）。' },
+    { k: 'hookSpine', label: 'S字：軸の長さ', min: 1.5, max: 9, step: 0.1, unit: 'cm', mul: 0.01, t: 'crane' },
+    { k: 'hookTopRadius', label: 'S字：上の曲がりの半径', min: 0.6, max: 2.5, step: 0.05, unit: 'cm', mul: 0.01, t: 'crane' },
+    { k: 'hookWire', label: '線の太さ（共通）', min: 2, max: 7, step: 0.1, unit: 'mm', mul: 0.001, t: 'crane' },
+    { k: 'hookMass', label: '重さ', min: 5, max: 100, step: 1, unit: 'g', mul: 0.001, t: 'crane' },
+    { k: 'hookFriction', label: '板側フックとの摩擦係数', min: 0.05, max: 1, step: 0.01, unit: '', mul: 1, t: 'live' },
+  ]},
+  { g: '吊り糸と下降', open: true, items: [
+    { k: 'ropeMax', label: '下降制限（ヘッドが下がる最大量）', min: 30, max: 62, step: 0.5, unit: 'cm', mul: 0.01, t: 'live',
+      note: 'マシン本体（ヘッド）は揺れずにまっすぐ下がり、板やリング、突っ張り棒に当たるとそこで止まります。床置きでは約47cmでフック先端が板に触れます（台を浮かせるとその分浅くなります）。' },
+    { k: 'chainLength', label: '吊り糸（チェーン）の長さ', min: 3, max: 30, step: 0.5, unit: 'cm', mul: 0.01, t: 'crane' },
+    { k: 'chainLinkLen', label: 'チェーン1コマの長さ', min: 0.8, max: 3, step: 0.1, unit: 'cm', mul: 0.01, t: 'crane',
+      note: '短いほど糸に近いしなやかな動きになります（計算は重くなります）。' },
+    { k: 'chainThick', label: 'チェーンの太さ', min: 3, max: 8, step: 0.1, unit: 'mm', mul: 0.001, t: 'crane' },
+    { k: 'chainLinkMass', label: 'チェーン1コマの重さ', min: 1, max: 15, step: 0.5, unit: 'g', mul: 0.001, t: 'crane' },
+    { k: 'chainDamping', label: 'ねじれ・回転の減衰', min: 0, max: 0.95, step: 0.01, unit: '', mul: 1, t: 'crane',
+      note: '0に近いほどフックがくるくる回り続けます。' },
+    { k: 'airDamping', label: '吊り糸とフックの揺れの収まりやすさ', min: 0, max: 0.9, step: 0.01, unit: '', mul: 1, t: 'live',
+      note: '0で揺れがほとんど減衰しません。' },
+    { k: 'ropeMin', label: '上にいるときのヘッドの位置（天井から）', min: 6, max: 24, step: 0.5, unit: 'cm', mul: 0.01, t: 'crane' },
+  ]},
+  { g: 'クレーンの動き', open: false, items: [
+    { k: 'speedX', label: '横移動の速さ', min: 3, max: 30, step: 0.5, unit: 'cm/s', mul: 0.01, t: 'live' },
+    { k: 'speedZ', label: '奥移動の速さ', min: 3, max: 30, step: 0.5, unit: 'cm/s', mul: 0.01, t: 'live' },
+    { k: 'accel', label: '加速・減速の強さ', min: 10, max: 400, step: 5, unit: 'cm/s²', mul: 0.01, t: 'live',
+      note: '大きいほど止まり方が急になり、吊り糸とフックが大きく揺れます（本体は揺れません）。' },
+    { k: 'dropDelay', label: '停止から下降までの間', min: 0, max: 3, step: 0.05, unit: '秒', mul: 1, t: 'live',
+      note: '揺れの周期に合わせて降ろす練習に使えます。' },
+    { k: 'speedDown', label: '下降の速さ', min: 5, max: 40, step: 0.5, unit: 'cm/s', mul: 0.01, t: 'live' },
+    { k: 'bottomWait', label: '下で止まる時間', min: 0, max: 3, step: 0.05, unit: '秒', mul: 1, t: 'live' },
+    { k: 'speedUp', label: '上昇の速さ', min: 5, max: 40, step: 0.5, unit: 'cm/s', mul: 0.01, t: 'live' },
+    { k: 'speedReturn', label: '初期位置へ戻る速さ', min: 5, max: 40, step: 0.5, unit: 'cm/s', mul: 0.01, t: 'live' },
+  ]},
+  { g: '板側（地面側）のフック', open: true, items: [
+    { k: 'ringType', label: '形', type: 'select', options: [['?', '？型フック'], ['D', 'Dリング（アーチ型）'], ['O', 'Oリング（縦置き）']], t: 'board' },
+    { k: 'ringCount', label: '数', min: 1, max: 3, step: 1, unit: '個', mul: 1, t: 'board' },
+    { k: 'ringWidth', label: '幅（？型は丸い部分の直径）', min: 2, max: 10, step: 0.1, unit: 'cm', mul: 0.01, t: 'board' },
+    { k: 'ringHeight', label: '高さ', min: 2, max: 12, step: 0.1, unit: 'cm', mul: 0.01, t: 'board' },
+    { k: 'ringPipe', label: 'パイプの太さ', min: 3, max: 16, step: 0.5, unit: 'mm', mul: 0.001, t: 'board' },
+    { k: 'qGap', label: '？型の巻き込み', min: 0, max: 80, step: 1, unit: '°', mul: 1, t: 'board',
+      note: '？型のときだけ使います。大きいほど入口が狭くなります。' },
+    { k: 'qTip', label: '？型の先端の伸ばし', min: 0, max: 2.5, step: 0.05, unit: 'cm', mul: 0.01, t: 'board',
+      note: '？型の先端をまっすぐ延長します。' },
+    { k: 'ringAngleMode', label: 'リングの向き', type: 'select', options: [['fixed', '指定した角度'], ['random', '並べ直すたびにランダム']], t: 'board' },
+    { k: 'ringAngle', label: '角度', min: -90, max: 90, step: 1, unit: '°', mul: 1, t: 'board',
+      note: '0°で正面からリングの形が見える向き、±90°で横向き、45°で斜め置き。' },
+  ]},
+  { g: '景品台の置き方', open: true, items: [
+    { k: 'support', label: '置き方', type: 'select', options: [['floor', '床に直置き'], ['rods', '突っ張り棒で空中に浮かせる']], t: 'board' },
+    { k: 'rodHeight', label: '突っ張り棒の高さ（床から）', min: 4, max: 35, step: 0.5, unit: 'cm', mul: 0.01, t: 'board' },
+    { k: 'rodDir', label: '棒の向き', type: 'select', options: [['x', '左右に渡す'], ['z', '前後に渡す']], t: 'board' },
+    { k: 'rodSpacing', label: '2本の棒の間隔', min: 3, max: 30, step: 0.5, unit: 'cm', mul: 0.01, t: 'board',
+      note: '板の大きさは横26cm×奥行16cmです。左右に渡すなら16cm未満、前後なら26cm未満で両方の棒に乗ります。' },
+    { k: 'rodRadius', label: '棒の太さ（半径）', min: 0.5, max: 2, step: 0.05, unit: 'cm', mul: 0.01, t: 'board' },
+    { k: 'rodFriction', label: '板と棒の摩擦係数', min: 0.05, max: 1.2, step: 0.01, unit: '', mul: 1, t: 'live' },
+    { k: 'boardMass', label: '板の重さ（景品込み）', min: 50, max: 1500, step: 10, unit: 'g', mul: 0.001, t: 'board' },
+    { k: 'boardFriction', label: '板と床の摩擦係数', min: 0.05, max: 1.2, step: 0.01, unit: '', mul: 1, t: 'live' },
+    { k: 'winLift', label: '獲得になる高さ', min: 1, max: 20, step: 0.5, unit: 'cm', mul: 0.01, t: 'live',
+      note: '板がこの高さまで釣り上がると獲得です。' },
+  ]},
+  { g: '物理と表示', open: false, items: [
+    { k: 'mode', label: '操作方法', type: 'select', options: [['button', '2ボタン式（①横→②奥）'], ['free', '自由移動（練習用）']], t: 'live' },
+    { k: 'timeScale', label: '時間の速さ', min: 0.1, max: 1, step: 0.05, unit: '倍', mul: 1, t: 'live',
+      note: 'スロー再生で引っ掛かり方を観察できます。物理の精度は変わりません。' },
+    { k: 'dt', label: '計算の細かさ', type: 'select', options: [[1 / 240, '240回/秒（標準）'], [1 / 480, '480回/秒（高精度・重い）']], t: 'live', num: true },
+    { k: 'iterations', label: 'ソルバーの反復回数', min: 15, max: 100, step: 1, unit: '回', mul: 1, t: 'live' },
+    { k: 'gravity', label: '重力加速度', min: 1, max: 20, step: 0.01, unit: 'm/s²', mul: 1, t: 'live' },
+    { k: 'guide', label: 'チェーンの真下にガイド線を表示', type: 'check', t: 'live' },
+    { k: 'lastMark', label: '前回フックが下りた位置を表示', type: 'check', t: 'live' },
+    { k: 'inset', label: '横からの小窓を表示', type: 'check', t: 'live' },
+  ]},
+];
+
+const PRESETS = [
+  { name: '標準（Dリング×2）', v: {} },
+  { name: 'Dリング斜め置き', v: { ringAngle: 45, ringCount: 1, ringWidth: 0.06, ringHeight: 0.065 } },
+  { name: 'Oリング×？型フック', v: { toolType: 'O', oRadius: 0.022, ringType: '?', ringCount: 2, ringWidth: 0.03, ringHeight: 0.075, ringPipe: 0.005, qGap: 20, qTip: 0.008 } },
+  { name: 'S字×？型フック', v: { ringType: '?', ringCount: 2, ringWidth: 0.035, ringHeight: 0.075, ringPipe: 0.006, qGap: 25 } },
+  { name: '突っ張り棒で空中', v: { support: 'rods', rodHeight: 0.15, rodSpacing: 0.10, ropeMax: 0.36 } },
+  { name: '空中×Oリング×？型', v: { support: 'rods', rodHeight: 0.15, rodSpacing: 0.10, ropeMax: 0.36, toolType: 'O', oRadius: 0.022, ringType: '?', ringCount: 2, ringWidth: 0.03, ringHeight: 0.075, ringPipe: 0.005, qGap: 20, qTip: 0.008 } },
+  { name: '下降制限あり', v: { ropeMax: 0.455 } },
+  { name: '小さく狭いフック', v: { hookRadius: 0.011, hookWrap: 55 } },
+  { name: 'ゆらゆら', v: { accel: 3, airDamping: 0.03, chainDamping: 0.08, speedX: 0.18, speedZ: 0.16 } },
+];
+
+const STORE_KEY = 'ufo-hook-sim-v1';
+let P = Object.assign({}, DEFAULTS);
+try { const saved = JSON.parse(localStorage.getItem(STORE_KEY) || 'null'); if (saved) Object.assign(P, saved); } catch (e) {}
+function save() { try { localStorage.setItem(STORE_KEY, JSON.stringify(P)); } catch (e) {} }
+let stats = { tries: 0, wins: 0 };
+try { const s = JSON.parse(localStorage.getItem(STORE_KEY + '-stats') || 'null'); if (s) stats = s; } catch (e) {}
+function saveStats() { try { localStorage.setItem(STORE_KEY + '-stats', JSON.stringify(stats)); } catch (e) {} }
+
+const $ = id => document.getElementById(id);
+const stage = $('stage');
+
+// ---------- physics ----------
+const sim = createHookSim(CANNON, P);
+let pendingCrane = false, pendingBoard = false;
+
+// ---------- three.js scene ----------
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.outputEncoding = THREE.sRGBEncoding;
+stage.prepend(renderer.domElement);
+$('loading').remove();
+$('hud').hidden = false;
+
+const scene = new THREE.Scene();
+const cam = new THREE.PerspectiveCamera(42, 1, 0.01, 20);
+const insetCam = new THREE.PerspectiveCamera(36, 1, 0.01, 20);
+insetCam.position.set(1.7, 0.42, 0); insetCam.lookAt(0, 0.36, 0);
+
+function cssVar(n) { return getComputedStyle(document.documentElement).getPropertyValue(n).trim(); }
+function applyTheme() { scene.background = new THREE.Color(cssVar('--stage') || '#dfe9f2'); }
+applyTheme();
+window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', applyTheme);
+
+scene.add(new THREE.HemisphereLight(0xffffff, 0x9a8fb0, 0.75));
+const sun = new THREE.DirectionalLight(0xffffff, 0.75);
+sun.position.set(0.05, 1.6, 0.15);
+sun.castShadow = true;
+sun.shadow.mapSize.set(2048, 2048);
+Object.assign(sun.shadow.camera, { left: -0.5, right: 0.5, top: 0.5, bottom: -0.5, near: 0.3, far: 2.5 });
+sun.shadow.bias = -0.0003;
+scene.add(sun);
+const fill = new THREE.DirectionalLight(0xfff1f6, 0.35); fill.position.set(-1, 0.8, 1.2); scene.add(fill);
+
+const M = sim.M;
+const matFloor = new THREE.MeshStandardMaterial({ color: 0xf7f3ff, roughness: 0.85 });
+const matWall = new THREE.MeshStandardMaterial({ color: 0xffd6e6, roughness: 0.6, transparent: true, opacity: 0.6, depthWrite: false });
+const matSide = new THREE.MeshStandardMaterial({ color: 0xffe3ee, roughness: 0.2, transparent: true, opacity: 0.12, depthWrite: false });
+const matGlass = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.1, transparent: true, opacity: 0.06, depthWrite: false });
+sim.statics.forEach(s => {
+  const [hx, hy, hz] = s.he;
+  const m = s.kind === 'wall' && hx < hz ? matSide : { floor: matFloor, wall: matWall, glass: matGlass }[s.kind];
+  const mesh = new THREE.Mesh(new THREE.BoxGeometry(hx * 2, hy * 2, hz * 2), m);
+  mesh.position.copy(s.body.position);
+  mesh.receiveShadow = s.kind === 'floor';
+  if (s.kind === 'glass') mesh.renderOrder = 10;
+  scene.add(mesh);
+});
+{ // 5 cm floor grid
+  const pts = [], y = 0.0006;
+  for (let x = -M.W / 2 + 0.05; x < M.W / 2 - 1e-6; x += 0.05) pts.push(new THREE.Vector3(x, y, -M.D / 2), new THREE.Vector3(x, y, M.D / 2));
+  for (let z = -M.D / 2 + 0.05; z < M.D / 2 - 1e-6; z += 0.05) pts.push(new THREE.Vector3(-M.W / 2, y, z), new THREE.Vector3(M.W / 2, y, z));
+  scene.add(new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(pts),
+    new THREE.LineBasicMaterial({ color: 0xb9a9d6, transparent: true, opacity: 0.45 })));
+}
+const matMetal = new THREE.MeshStandardMaterial({ color: 0xc9cfd8, metalness: 0.7, roughness: 0.3 });
+const matSteel = new THREE.MeshStandardMaterial({ color: 0xd6dbe3, metalness: 0.9, roughness: 0.22 });
+const matDark = new THREE.MeshStandardMaterial({ color: 0x4b4363, metalness: 0.3, roughness: 0.5 });
+const matRing = new THREE.MeshStandardMaterial({ color: 0xe8384f, roughness: 0.35 });
+[-1, 1].forEach(sz => {
+  const r = new THREE.Mesh(new THREE.BoxGeometry(M.W, 0.012, 0.012), matMetal);
+  r.position.set(0, M.topY + 0.02, sz * (M.D / 2 - 0.01)); scene.add(r);
+});
+const zBar = new THREE.Mesh(new THREE.BoxGeometry(0.014, 0.012, M.D), matMetal);
+zBar.position.y = M.topY + 0.032; scene.add(zBar);
+const carriageMesh = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.03, 0.06), matDark);
+carriageMesh.castShadow = true; scene.add(carriageMesh);
+const cable = new THREE.Mesh(new THREE.CylinderGeometry(0.0012, 0.0012, 1, 6), new THREE.MeshStandardMaterial({ color: 0x2b2b2b }));
+cable.castShadow = true; scene.add(cable);
+const guideGeom = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3()]);
+const guide = new THREE.Line(guideGeom, new THREE.LineDashedMaterial({ color: 0xff4f8b, dashSize: 0.01, gapSize: 0.007 }));
+scene.add(guide);
+let markSet = false;
+const mark = new THREE.Mesh(new THREE.RingGeometry(0.008, 0.013, 32), new THREE.MeshBasicMaterial({ color: 0xff4f8b, transparent: true, opacity: 0.85, depthTest: false }));
+mark.rotation.x = -Math.PI / 2; mark.visible = false; mark.renderOrder = 5; scene.add(mark);
+
+// ---------- body visuals ----------
+function tubeFrom(points, radius, closed, mat) {
+  const curve = new THREE.CatmullRomCurve3(points, closed, 'centripetal');
+  const m = new THREE.Mesh(new THREE.TubeGeometry(curve, Math.max(24, points.length * 2), radius, 10, closed), mat);
+  m.castShadow = true; m.receiveShadow = true;
+  return m;
+}
+function boardLabelTexture() {
+  const c = document.createElement('canvas'); c.width = 512; c.height = 320;
+  const g = c.getContext('2d');
+  g.fillStyle = '#ffe9b8'; g.fillRect(0, 0, 512, 320);
+  g.fillStyle = '#ffd27a';
+  for (let i = -320; i < 512; i += 48) { g.beginPath(); g.moveTo(i, 0); g.lineTo(i + 24, 0); g.lineTo(i + 24 + 320, 320); g.lineTo(i + 320, 320); g.fill(); }
+  g.fillStyle = '#ff4f8b'; g.font = '800 64px "M PLUS Rounded 1c", sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+  g.fillText('景品', 256, 270);
+  const t = new THREE.CanvasTexture(c); t.encoding = THREE.sRGBEncoding; return t;
+}
+const boardTopTex = boardLabelTexture();
+let visuals = { head: null, links: [], hook: null, board: null, rods: null, ids: '' };
+function buildVisuals() {
+  const ids = [sim.head.id, sim.hook.id, sim.board.id].join(',');
+  if (visuals.ids === ids) return;
+  [visuals.head, visuals.hook, visuals.board, visuals.rods, ...visuals.links].forEach(m => m && scene.remove(m));
+  // tension rods (static)
+  const rods = new THREE.Group();
+  const rodMat = new THREE.MeshStandardMaterial({ color: 0xf4f4f7, metalness: 0.4, roughness: 0.35 });
+  const capMat = new THREE.MeshStandardMaterial({ color: 0x5aa9e6, roughness: 0.5 });
+  sim.rods.forEach(r => {
+    const m = new THREE.Mesh(new THREE.CylinderGeometry(r.r, r.r, r.len, 24), rodMat);
+    m.castShadow = true; m.receiveShadow = true;
+    if (r.alongX) m.rotation.z = Math.PI / 2; else m.rotation.x = Math.PI / 2;
+    m.position.copy(r.body.position); rods.add(m);
+    [-1, 1].forEach(s => {
+      const cap = new THREE.Mesh(new THREE.CylinderGeometry(r.r * 1.6, r.r * 1.6, 0.012, 24), capMat);
+      if (r.alongX) { cap.rotation.z = Math.PI / 2; cap.position.set(s * (r.len / 2 - 0.006), r.y, r.c); }
+      else { cap.rotation.x = Math.PI / 2; cap.position.set(r.c, r.y, s * (r.len / 2 - 0.006)); }
+      rods.add(cap);
+    });
+  });
+  scene.add(rods);
+  // head
+  const head = new THREE.Group();
+  const cyl = new THREE.Mesh(new THREE.CylinderGeometry(P.headRadius, P.headRadius, P.headHeight, 32), matDark);
+  cyl.castShadow = true; head.add(cyl);
+  const eye = new THREE.Mesh(new THREE.TorusGeometry(0.006, 0.0018, 8, 16), matSteel);
+  eye.position.y = -P.headHeight / 2 - 0.004; head.add(eye);
+  scene.add(head);
+  // chain links
+  const links = sim.links.map((l, i) => {
+    const g = new THREE.Group();
+    const tor = new THREE.Mesh(new THREE.TorusGeometry(l.len * 0.3, l.r * 0.55, 8, 20), matSteel);
+    tor.scale.set(0.8, 1.55, 1); tor.castShadow = true;
+    if (i % 2) tor.rotation.y = Math.PI / 2;
+    g.add(tor); scene.add(g); return g;
+  });
+  // hook
+  const hi = sim.hookInfo;
+  const hook = tubeFrom(hi.path.map(p => new THREE.Vector3(p[0] - hi.com.x, p[1] - hi.com.y, -hi.com.z)), hi.wr, !!hi.closed, matSteel);
+  scene.add(hook);
+  // board + rings
+  const bi = sim.boardInfo;
+  const board = new THREE.Group();
+  const wood = new THREE.MeshStandardMaterial({ color: 0xf2d29b, roughness: 0.8 });
+  const top = new THREE.MeshStandardMaterial({ map: boardTopTex, roughness: 0.7 });
+  const box = new THREE.Mesh(new THREE.BoxGeometry(bi.bw, bi.bt, bi.bd), [wood, wood, top, wood, wood, wood]);
+  box.position.set(-bi.com.x, -bi.com.y, -bi.com.z); box.castShadow = true; box.receiveShadow = true;
+  board.add(box);
+  bi.rings.forEach(r => {
+    const pts = r.path.map(p => new THREE.Vector3(p[0] - bi.com.x, p[1] - bi.com.y, p[2] - bi.com.z));
+    board.add(tubeFrom(pts, bi.pr, P.ringType === 'O', matRing));
+    if (r.post) {
+      const post = new THREE.Mesh(new THREE.BoxGeometry(r.post.w, r.post.h, r.post.w), matRing);
+      post.position.set(r.ox - bi.com.x, bi.bt / 2 + r.post.h / 2 - bi.com.y, -bi.com.z);
+      board.add(post);
+    }
+  });
+  scene.add(board);
+  visuals = { head, links, hook, board, rods, ids };
+}
+function syncVisuals() {
+  buildVisuals();
+  const put = (m, b) => { m.position.copy(b.position); m.quaternion.copy(b.quaternion); };
+  put(visuals.head, sim.head);
+  sim.links.forEach((l, i) => visuals.links[i] && put(visuals.links[i], l.body));
+  put(visuals.hook, sim.hook);
+  put(visuals.board, sim.board);
+}
+function hookLowestPoint() {
+  const h = sim.hook; let lo = null;
+  for (let i = 0; i < h.shapes.length; i++) {
+    const w = h.quaternion.vmult(h.shapeOffsets[i]).vadd(h.position);
+    if (!lo || w.y < lo.y) lo = w;
+  }
+  return lo;
+}
+
+// ---------- camera control ----------
+const target = new THREE.Vector3(0, 0.26, 0);
+const orbit = { theta: 0, phi: 1.2, r: 1.25 };
+const VIEWS = {
+  front: { theta: 0, phi: 1.2, r: 1.4, ty: 0.31 },
+  side: { theta: Math.PI / 2, phi: 1.3, r: 1.5, ty: 0.34 },
+  top: { theta: 0, phi: 0.02, r: 1.45, ty: 0 },
+  diag: { theta: 0.65, phi: 1.05, r: 1.3, ty: 0.26 },
+  follow: { theta: 0.35, phi: 1.15, r: 0.42, ty: 0.1, follow: true },
+};
+let followHook = false;
+function setView(name) {
+  const v = VIEWS[name]; Object.assign(orbit, { theta: v.theta, phi: v.phi, r: v.r }); target.set(0, v.ty, 0);
+  followHook = !!v.follow;
+  document.querySelectorAll('[data-view]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.view === name)));
+}
+function updateCam() {
+  orbit.phi = Math.max(0.02, Math.min(1.55, orbit.phi));
+  orbit.r = Math.max(0.2, Math.min(3, orbit.r));
+  const r = orbit.r * Math.max(1, 1.25 / cam.aspect); // keep the cabinet in frame on portrait screens
+  cam.position.set(
+    target.x + r * Math.sin(orbit.phi) * Math.sin(orbit.theta),
+    target.y + r * Math.cos(orbit.phi),
+    target.z + r * Math.sin(orbit.phi) * Math.cos(orbit.theta));
+  cam.lookAt(target);
+}
+setView('front');
+document.querySelectorAll('[data-view]').forEach(b => b.addEventListener('click', () => setView(b.dataset.view)));
+{
+  const cv = renderer.domElement; const ptrs = new Map(); let pinch0 = 0;
+  cv.addEventListener('pointerdown', e => { cv.setPointerCapture(e.pointerId); ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY }); });
+  cv.addEventListener('pointermove', e => {
+    if (!ptrs.has(e.pointerId)) return;
+    const p = ptrs.get(e.pointerId);
+    if (ptrs.size === 1) {
+      orbit.theta -= (e.clientX - p.x) * 0.006; orbit.phi -= (e.clientY - p.y) * 0.006;
+      document.querySelectorAll('[data-view]').forEach(b => b.setAttribute('aria-pressed', 'false'));
+    } else if (ptrs.size === 2) {
+      const [a, b] = [...ptrs.values()];
+      const d0 = Math.hypot(a.x - b.x, a.y - b.y);
+      p.x = e.clientX; p.y = e.clientY;
+      const [c, d] = [...ptrs.values()];
+      const d1 = Math.hypot(c.x - d.x, c.y - d.y);
+      if (d0 > 0) orbit.r *= d0 / d1;
+      return;
+    }
+    p.x = e.clientX; p.y = e.clientY;
+  });
+  const up = e => ptrs.delete(e.pointerId);
+  cv.addEventListener('pointerup', up); cv.addEventListener('pointercancel', up);
+  cv.addEventListener('wheel', e => { e.preventDefault(); orbit.r *= Math.exp(e.deltaY * 0.001); }, { passive: false });
+}
+
+function resize() {
+  const w = stage.clientWidth, h = stage.clientHeight;
+  renderer.setSize(w, h, false);
+  cam.aspect = w / h; cam.updateProjectionMatrix();
+}
+new ResizeObserver(resize).observe(stage);
+resize();
+
+// ---------- controls ----------
+const b1 = $('b1'), b2 = $('b2');
+function press(which, down) {
+  const S = sim.S;
+  if ((S.state === 'idle' ? P.mode : S.mode) !== 'button') return;
+  if (which === 1) {
+    if (down && S.state === 'idle') { if (applyPending()) return; sim.start(); }
+    if (down && S.state !== 'moveX') return;
+    S.btn1 = down; b1.classList.toggle('pressed', down);
+  } else {
+    if (down && S.state !== 'waitZ') return;
+    S.btn2 = down; b2.classList.toggle('pressed', down);
+  }
+}
+function bindHold(el, fn) {
+  el.addEventListener('pointerdown', e => { e.preventDefault(); el.setPointerCapture(e.pointerId); fn(true); });
+  ['pointerup', 'pointercancel', 'lostpointercapture'].forEach(ev => el.addEventListener(ev, () => fn(false)));
+  el.addEventListener('contextmenu', e => e.preventDefault());
+}
+bindHold(b1, d => press(1, d));
+bindHold(b2, d => press(2, d));
+function freeKey(k, down) {
+  const S = sim.S;
+  if ((S.state === 'idle' ? P.mode : S.mode) !== 'free') return;
+  if (down && S.state === 'idle') { if (applyPending()) return; sim.start(); }
+  S.keys[k] = down;
+  const el = document.querySelector(`.dpad [data-k="${k}"]`); if (el) el.classList.toggle('pressed', down);
+}
+function freeDrop() { if (sim.S.state === 'free') { Object.keys(sim.S.keys).forEach(k => freeKey(k, false)); sim.S.dropReq = true; } }
+document.querySelectorAll('.dpad [data-k]').forEach(el => bindHold(el, d => freeKey(el.dataset.k, d)));
+$('dropBtn').addEventListener('click', freeDrop);
+
+const KEYMAP_BTN = { ArrowRight: 1, Digit1: 1, Numpad1: 1, ArrowUp: 2, Digit2: 2, Numpad2: 2 };
+const KEYMAP_FREE = { ArrowLeft: 'l', KeyA: 'l', ArrowRight: 'r', KeyD: 'r', ArrowUp: 'b', KeyW: 'b', ArrowDown: 'f', KeyS: 'f' };
+window.addEventListener('keydown', e => {
+  if (e.target.closest && e.target.closest('input, select')) return;
+  const mode = sim.S.state === 'idle' ? P.mode : sim.S.mode;
+  if (mode === 'button' && KEYMAP_BTN[e.code]) { e.preventDefault(); if (!e.repeat) press(KEYMAP_BTN[e.code], true); }
+  if (mode === 'free') {
+    if (KEYMAP_FREE[e.code]) { e.preventDefault(); if (!e.repeat) freeKey(KEYMAP_FREE[e.code], true); }
+    if (e.code === 'Space') { e.preventDefault(); freeDrop(); }
+  }
+});
+window.addEventListener('keyup', e => {
+  if (KEYMAP_BTN[e.code]) press(KEYMAP_BTN[e.code], false);
+  if (KEYMAP_FREE[e.code]) freeKey(KEYMAP_FREE[e.code], false);
+});
+window.addEventListener('blur', () => { press(1, false); press(2, false); Object.keys(sim.S.keys).forEach(k => freeKey(k, false)); });
+
+function refreshMode() {
+  const free = P.mode === 'free';
+  $('arcadeButtons').hidden = free; $('dpad').hidden = !free;
+  $('hint').textContent = free
+    ? '矢印キーかWASDで移動、スペースで下降。ボタン式では練習しにくい位置合わせの確認に。'
+    : '①を押している間だけ右へ、離したら②で奥へ。キーボードは → と ↑（または 1 と 2）。';
+}
+
+// ---------- events ----------
+const toast = $('toast');
+const insetFrame = $('insetFrame');
+let toastTimer = 0;
+sim.S.onEvent = (e, d) => {
+  if (e === 'start') { stats.tries++; saveStats(); updateScore(); }
+  if (e === 'win') { stats.wins++; saveStats(); updateScore(); toast.classList.add('show'); toastTimer = 1.8; }
+  if (e === 'touch' || e === 'bottom') {
+    const lo = hookLowestPoint(); markSet = true; mark.position.set(lo.x, Math.max(0.002, lo.y - P.hookWire / 2 + 0.001), lo.z);
+  }
+  if (e === 'end') { if (d && d.won) pendingBoard = true; applyPending(); }
+};
+function updateScore() {
+  $('sTries').textContent = stats.tries; $('sWins').textContent = stats.wins;
+  $('sRate').textContent = stats.tries ? Math.round(stats.wins / stats.tries * 100) + '%' : '–';
+}
+updateScore();
+
+// ---------- settings panel ----------
+const fmt = (v, step) => { const d = step < 0.1 ? 2 : step < 1 ? 1 : 0; return Number(v).toFixed(d); };
+const inputs = {};
+function buildPanel() {
+  const root = $('settings');
+  SPEC.forEach(sec => {
+    const det = document.createElement('details'); det.open = sec.open;
+    det.innerHTML = `<summary>${sec.g}</summary>`;
+    sec.items.forEach(it => {
+      const row = document.createElement('div'); row.className = 'row';
+      const id = 'in_' + it.k;
+      if (it.type === 'select') {
+        row.innerHTML = `<label for="${id}">${it.label}</label><select id="${id}">${it.options.map(o => `<option value="${o[0]}">${o[1]}</option>`).join('')}</select>`;
+      } else if (it.type === 'check') {
+        row.innerHTML = `<label class="check"><input type="checkbox" id="${id}">${it.label}</label>`;
+      } else {
+        row.innerHTML = `<label for="${id}"><span>${it.label}</span><output id="o_${it.k}"></output></label>
+          <input type="range" id="${id}" min="${it.min}" max="${it.max}" step="${it.step}">`;
+      }
+      if (it.note) row.insertAdjacentHTML('beforeend', `<p class="note">${it.note}</p>`);
+      det.appendChild(row);
+      const el = row.querySelector('#' + id);
+      inputs[it.k] = { el, it };
+      const handler = () => {
+        let v;
+        if (it.type === 'select') v = it.num ? Number(el.value) : el.value;
+        else if (it.type === 'check') v = el.checked;
+        else v = Number(el.value) * it.mul;
+        P[it.k] = v; save(); showVal(it.k); onChange(it);
+      };
+      el.addEventListener(it.type === 'range' || !it.type ? 'input' : 'change', handler);
+    });
+    root.appendChild(det);
+  });
+  const pr = $('presets');
+  PRESETS.forEach(p => {
+    const b = document.createElement('button'); b.className = 'chip'; b.textContent = p.name;
+    b.addEventListener('click', () => {
+      const keepView = { guide: P.guide, inset: P.inset, lastMark: P.lastMark, mode: P.mode, timeScale: P.timeScale };
+      P = Object.assign({}, DEFAULTS, p.v, keepView); Object.assign(sim.P, P);
+      save(); syncInputs(); pendingCrane = true; pendingBoard = true; applyLiveAll(); applyPending();
+    });
+    pr.appendChild(b);
+  });
+}
+function showVal(k) {
+  const { el, it } = inputs[k];
+  if (it.type === 'select') { el.value = String(P[k]); if (el.selectedIndex < 0) el.selectedIndex = 0; return; }
+  if (it.type === 'check') { el.checked = !!P[k]; return; }
+  const disp = P[k] / it.mul;
+  el.value = disp;
+  $('o_' + k).textContent = fmt(disp, it.step) + (it.unit ? ' ' + it.unit : '');
+}
+function syncInputs() { Object.keys(inputs).forEach(showVal); }
+function applyLiveAll() { Object.assign(sim.P, P); sim.applyLive(); refreshMode(); }
+function onChange(it) {
+  Object.assign(sim.P, P);
+  if (it.t === 'crane') pendingCrane = true;
+  if (it.t === 'board') pendingBoard = true;
+  applyLiveAll();
+  if (sim.S.state === 'idle') applyPending(); else showPending();
+}
+function showPending() {
+  $('pending').textContent = (pendingCrane || pendingBoard) ? 'このプレイが終わったら変更を反映します。' : '';
+}
+// returns true if something was rebuilt
+function applyPending() {
+  if (sim.S.state !== 'idle') { showPending(); return false; }
+  let did = false;
+  if (pendingCrane) { sim.resetCrane(); pendingCrane = false; did = true; }
+  if (pendingBoard) { sim.resetBoard(); pendingBoard = false; did = true; }
+  showPending();
+  return did;
+}
+buildPanel(); syncInputs(); refreshMode();
+// make sure the sim uses the stored settings (sim was created with P already)
+$('respawn').addEventListener('click', () => { pendingBoard = true; applyPending(); });
+$('resetStats').addEventListener('click', () => { stats = { tries: 0, wins: 0 }; saveStats(); updateScore(); });
+$('resetAll').addEventListener('click', () => {
+  P = Object.assign({}, DEFAULTS); Object.assign(sim.P, P); save(); syncInputs();
+  pendingCrane = pendingBoard = true; applyLiveAll(); applyPending();
+});
+
+// ---------- HUD ----------
+const STATE_TXT = {
+  idle: ['待機中', '①を押してスタート'], moveX: ['横に移動中', ''], waitZ: ['②を押して奥へ', ''],
+  moveZ: ['奥に移動中', ''], free: ['自由移動', 'スペースで下降'], drop: ['停止', ''], descend: ['下降中', ''],
+  bottom: ['下で停止', ''], lift: ['上昇中', ''], topPause: ['上昇完了', ''], return: ['初期位置へ', ''], settle: ['停止', ''],
+};
+let perfAvg = 0, hudT = 0;
+function updateHud() {
+  const S = sim.S, c = sim.crane;
+  const [s] = STATE_TXT[S.state] || [S.state];
+  $('hState').textContent = S.state === 'idle' ? (P.mode === 'free' ? '待機中（矢印キーで開始）' : '待機中（①でスタート）') : s;
+  $('hPos').textContent = `横 ${((c.x + M.W / 2) * 100).toFixed(1)} / 奥 ${((M.D / 2 - c.z) * 100).toFixed(1)} cm`;
+  $('hRope').textContent = ((sim.ropeActual() - P.ropeMin) * 100).toFixed(1) + ' cm';
+  $('hSwing').textContent = sim.swingDeg().toFixed(1) + '°';
+  const yaw = sim.hookYaw(); // direction the lower hook opens toward
+  const dirs = ['右', '右奥', '奥', '左奥', '左', '左手前', '手前', '右手前'];
+  $('hYaw').textContent = dirs[((Math.round(yaw / 45) % 8) + 8) % 8] + '（' + yaw.toFixed(0) + '°）';
+  if (P.toolType === 'O') { $('hGapL').textContent = 'Oリングの内径'; $('hGap').textContent = (P.oRadius * 2000).toFixed(1) + ' mm'; }
+  else {
+    const gap = P.hookRadius * (1 + Math.cos(P.hookWrap * Math.PI / 180)) - P.hookWire;
+    $('hGapL').textContent = 'フックのすき間'; $('hGap').textContent = (gap * 1000).toFixed(1) + ' mm';
+  }
+  $('hLift').textContent = (Math.max(0, sim.boardLift()) * 100).toFixed(1) + ' / ' + (P.winLift * 100).toFixed(1) + ' cm';
+  $('hPerf').textContent = `${Math.round(1 / P.dt)}Hz・${perfAvg.toFixed(1)}ms`;
+  b1.disabled = !(S.state === 'idle' || S.state === 'moveX');
+  b2.disabled = !(S.state === 'waitZ' || S.state === 'moveZ');
+  b1.classList.toggle('ready', S.state === 'idle');
+  b2.classList.toggle('ready', S.state === 'waitZ');
+}
+
+// ---------- main loop ----------
+let last = performance.now(), acc = 0;
+const tmpV = new THREE.Vector3();
+function frame(now) {
+  let real = Math.min(0.1, (now - last) / 1000); last = now;
+  acc += real * P.timeScale;
+  const dt = P.dt;
+  const t0 = performance.now();
+  let n = 0;
+  const maxSteps = Math.ceil(0.05 / dt);
+  while (acc >= dt && n < maxSteps) { sim.step(dt); acc -= dt; n++; }
+  if (n >= maxSteps) acc = 0; // too slow: drop time instead of spiraling
+  perfAvg = perfAvg * 0.95 + (performance.now() - t0) * 0.05;
+
+  syncVisuals();
+  const c = sim.carriage.position;
+  carriageMesh.position.set(c.x, c.y + 0.015, c.z);
+  zBar.position.x = c.x;
+  const top = sim.headTop();
+  tmpV.set(top.x - c.x, top.y - c.y, top.z - c.z);
+  const len = tmpV.length();
+  cable.position.set((c.x + top.x) / 2, (c.y + top.y) / 2, (c.z + top.z) / 2);
+  cable.scale.set(1, len, 1);
+  cable.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), tmpV.normalize());
+  guide.visible = P.guide;
+  if (P.guide) {
+    const h = sim.head.position;
+    guideGeom.setFromPoints([new THREE.Vector3(h.x, h.y - P.headHeight / 2, h.z), new THREE.Vector3(h.x, 0.001, h.z)]);
+    guide.computeLineDistances();
+  }
+  mark.visible = P.lastMark && markSet;
+  if (toastTimer > 0) { toastTimer -= real; if (toastTimer <= 0) toast.classList.remove('show'); }
+
+  if (followHook) {
+    const hp = sim.hook.position;
+    target.x += (hp.x - target.x) * 0.08; target.z += (hp.z - target.z) * 0.08;
+    target.y += (Math.max(0.05, hp.y) - target.y) * 0.08;
+  }
+  updateCam();
+  const w = stage.clientWidth, h = stage.clientHeight;
+  renderer.setScissorTest(false);
+  renderer.setViewport(0, 0, w, h);
+  renderer.render(scene, cam);
+  insetFrame.hidden = !P.inset;
+  if (P.inset) {
+    const narrow = w < 600;
+    const iw = Math.round(Math.min(w * (narrow ? 0.38 : 0.3), 300)), ih = Math.round(Math.min(h * 0.36, iw * 1.15));
+    const x = w - iw - 12, y = narrow ? 12 : h - ih - 12;
+    const fs = insetFrame.style;
+    fs.left = x + 'px'; fs.width = iw + 'px'; fs.height = ih + 'px'; fs.top = (h - y - ih) + 'px';
+    insetCam.aspect = iw / ih; insetCam.updateProjectionMatrix();
+    renderer.setScissorTest(true);
+    renderer.setScissor(x, y, iw, ih); renderer.setViewport(x, y, iw, ih);
+    renderer.render(scene, insetCam);
+    renderer.setScissorTest(false);
+  }
+  hudT += real; if (hudT > 0.08) { hudT = 0; updateHud(); }
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+
+// ---------- share settings via URL / code ----------
+const SHARE_EXCLUDE = new Set(['guide', 'lastMark', 'inset', 'timeScale']);
+const SPEC_BY_KEY = {};
+SPEC.forEach(sec => sec.items.forEach(it => { SPEC_BY_KEY[it.k] = it; }));
+function b64urlFromBytes(bytes) {
+  let s = ''; bytes.forEach(b => { s += String.fromCharCode(b); });
+  return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+function bytesFromB64url(str) {
+  const s = atob(str.replace(/-/g, '+').replace(/_/g, '/'));
+  return Uint8Array.from(s, c => c.charCodeAt(0));
+}
+async function pipeBytes(bytes, stream) {
+  const out = new Blob([bytes]).stream().pipeThrough(stream);
+  return new Uint8Array(await new Response(out).arrayBuffer());
+}
+async function encodeSettings() {
+  const diff = {};
+  Object.keys(DEFAULTS).forEach(k => {
+    if (SHARE_EXCLUDE.has(k)) return;
+    const v = P[k], d = DEFAULTS[k];
+    if (typeof v === 'number' ? Math.abs(v - d) > 1e-9 : v !== d) diff[k] = typeof v === 'number' ? +v.toPrecision(6) : v;
+  });
+  const raw = new TextEncoder().encode(JSON.stringify(diff));
+  if (typeof CompressionStream !== 'undefined') {
+    try { return 'z' + b64urlFromBytes(await pipeBytes(raw, new CompressionStream('deflate-raw'))); } catch (e) {}
+  }
+  return 'j' + b64urlFromBytes(raw);
+}
+async function decodeSettings(code) {
+  code = (code || '').trim();
+  const m = code.match(/[#?&]s=([A-Za-z0-9_-]+)/); if (m) code = m[1];
+  if (!/^[zj][A-Za-z0-9_-]+$/.test(code)) throw new Error('format');
+  let bytes = bytesFromB64url(code.slice(1));
+  if (code[0] === 'z') bytes = await pipeBytes(bytes, new DecompressionStream('deflate-raw'));
+  const obj = JSON.parse(new TextDecoder().decode(bytes));
+  const clean = {};
+  Object.keys(obj).forEach(k => {
+    if (!(k in DEFAULTS) || SHARE_EXCLUDE.has(k)) return;
+    const v = obj[k], it = SPEC_BY_KEY[k];
+    if (typeof DEFAULTS[k] === 'number') {
+      if (typeof v !== 'number' || !isFinite(v)) return;
+      let x = v;
+      if (it && it.min !== undefined) x = Math.min(it.max * it.mul, Math.max(it.min * it.mul, x));
+      if (it && it.type === 'select') { if (!it.options.some(o => Math.abs(Number(o[0]) - x) < 1e-9)) return; }
+      clean[k] = x;
+    } else if (typeof DEFAULTS[k] === 'string') {
+      if (typeof v !== 'string') return;
+      if (it && it.type === 'select' && !it.options.some(o => String(o[0]) === v)) return;
+      clean[k] = v;
+    } else if (typeof DEFAULTS[k] === 'boolean' && typeof v === 'boolean') clean[k] = v;
+  });
+  return clean;
+}
+function applyShared(clean) {
+  const keepView = { guide: P.guide, inset: P.inset, lastMark: P.lastMark, timeScale: P.timeScale };
+  P = Object.assign({}, DEFAULTS, clean, keepView); Object.assign(sim.P, P);
+  save(); syncInputs(); pendingCrane = true; pendingBoard = true; applyLiveAll(); applyPending();
+}
+function shareBaseUrl() {
+  try { return location.href.split('#')[0].split('?')[0]; } catch (e) { return ''; }
+}
+const inFrame = (() => { try { return window.top !== window; } catch (e) { return true; } })();
+async function copyText(text) {
+  const box = $('shareOut'); box.hidden = false; box.value = text; box.focus(); box.select();
+  try { await navigator.clipboard.writeText(text); return true; } catch (e) {
+    try { return document.execCommand('copy'); } catch (e2) { return false; }
+  }
+}
+function shareMsg(t) { $('shareMsg').textContent = t; }
+$('shareUrl').addEventListener('click', async () => {
+  const code = await encodeSettings();
+  const url = shareBaseUrl() + '#s=' + code;
+  const ok = await copyText(url);
+  shareMsg((ok ? 'URLをコピーしました。' : '下の欄のURLを選択してコピーしてください。') +
+    (inFrame || location.protocol === 'file:' ? ' このURLは、HTMLファイルをWebに置いて開いたときに使えます。claude.ai上やPC内のファイルで開いている場合は「共有コード」を使ってください。' : ''));
+});
+$('shareCode').addEventListener('click', async () => {
+  const code = await encodeSettings();
+  const ok = await copyText(code);
+  shareMsg(ok ? '共有コードをコピーしました。相手は「コードを読み込む」に貼り付けると同じ設定で遊べます。' : '下の欄のコードを選択してコピーしてください。');
+});
+$('shareLoad').addEventListener('click', async () => {
+  const v = $('shareIn').value;
+  if (!v.trim()) { shareMsg('共有コードかURLを貼り付けてから押してください。'); return; }
+  if (sim.S.state !== 'idle') { shareMsg('クレーンが待機中になってから読み込んでください。'); return; }
+  try { applyShared(await decodeSettings(v)); shareMsg('共有された設定を読み込みました。'); $('shareIn').value = ''; }
+  catch (e) { shareMsg('読み込めませんでした。コードが途中で切れていないか確認してください。'); }
+});
+// open with #s=... (or ?s=...) in the address
+async function loadFromAddress() {
+  let src = '';
+  try { src = location.hash + location.search; } catch (e) {}
+  if (!/[#?&]s=/.test(src)) return;
+  if (sim.S.state !== 'idle') { shareMsg('クレーンが待機中になってから、もう一度URLを開いてください。'); return; }
+  try { applyShared(await decodeSettings(src)); shareMsg('URLで共有された設定を読み込みました。'); toastText('共有設定で開きました'); }
+  catch (e) { shareMsg('URLの設定を読み込めませんでした。'); }
+}
+loadFromAddress();
+window.addEventListener('hashchange', loadFromAddress);
+function toastText(t) { toast.textContent = t; toast.classList.add('show'); toastTimer = 2.2; setTimeout(() => { toast.textContent = 'GET!'; }, 2600); }
+
+</script>
+</body>
+</html>
